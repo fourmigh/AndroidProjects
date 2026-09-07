@@ -1,0 +1,13 @@
+<resources>
+    <string name="monitor_title">截屏监听</string>
+    <string name="start">开始</string>
+    <string name="stop">停止</string>
+    <string name="clear">清空</string>
+    <string name="status_running">状态: 运行中</string>
+    <string name="status_stopped">状态: 已停止</string>
+    <string name="monitor_started">监听已启动</string>
+    <string name="monitor_stopped">监听已停止</string>
+    <string name="recent_list_cleared">最近列表已清空</string>
+    <string name="recent_screenshots_count">最近截屏 (%d)</string>
+    <string name="no_screenshots">暂无截屏</string>
+</resources>

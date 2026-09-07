@@ -1,0 +1,13 @@
+<resources>
+    <string name="parser_test_title">Parser Test</string>
+    <string name="select_parser">Select Parser</string>
+    <string name="input_ocr_text">Input OCR Text</string>
+    <string name="ocr_text_placeholder">Paste OCR recognized text here…</string>
+    <string name="parse">Parse</string>
+    <string name="parse_result">Parse Result</string>
+    <string name="amount_label">Amount</string>
+    <string name="discount_label">Discount</string>
+    <string name="original_label">Original</string>
+    <string name="items_label">Items</string>
+    <string name="items_detail_label">Items Detail:</string>
+</resources>

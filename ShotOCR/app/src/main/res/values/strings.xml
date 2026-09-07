@@ -1,0 +1,26 @@
+<resources>
+    <string name="app_name">ShotOCR</string>
+    <string name="app_title">截屏记账</string>
+    <string name="service_status">服务状态</string>
+    <string name="service_running">运行中 - 正在监听截屏</string>
+    <string name="service_stopped">已停止</string>
+    <string name="instructions_title">使用说明</string>
+    <string name="instruction_1">1. 确保上方服务状态为「运行中」</string>
+    <string name="instruction_2">2. 在支付宝等应用的账单详情页截屏</string>
+    <string name="instruction_3">3. 程序会自动识别账单金额和商品</string>
+    <string name="instruction_4">4. 确认信息后保存记账记录</string>
+    <string name="permission_required_title">需要权限</string>
+    <string name="permission_required_desc">需要存储权限来读取截屏图片，请授予权限以启用截屏监听功能。</string>
+    <string name="grant_permission">授予权限</string>
+    <string name="notification_channel_name">截屏监听</string>
+    <string name="notification_channel_desc">截屏记账服务运行中</string>
+    <string name="notification_title">截屏记账</string>
+    <string name="notification_listening">正在监听截屏…</string>
+    <string name="notification_permission_desc">需要通知权限来显示截屏监听状态，请授予通知权限。</string>
+    <string name="grant_notification_permission">授予通知权限</string>
+    <string name="overlay_permission_desc">需要悬浮窗权限以在截图后自动弹出确认界面，请在设置中开启。</string>
+    <string name="grant_overlay_permission">开启悬浮窗权限</string>
+    <string name="confirm_channel_name">截图确认</string>
+    <string name="confirm_channel_desc">截图识别完成后自动弹出确认界面</string>
+    <string name="screenshot_detected">检测到截图，正在处理…</string>
+</resources>

@@ -1,0 +1,8 @@
+<resources>
+    <string name="ocr_test_title">OCR Test</string>
+    <string name="select_image">Select Image</string>
+    <string name="engine_ready">Engine Ready</string>
+    <string name="processing">Processing…</string>
+    <string name="error_format">Error: %s</string>
+    <string name="found_text_blocks">Found %d text blocks</string>
+</resources>

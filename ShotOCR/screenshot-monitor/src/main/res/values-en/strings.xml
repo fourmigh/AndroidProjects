@@ -1,0 +1,13 @@
+<resources>
+    <string name="monitor_title">Screenshot Monitor</string>
+    <string name="start">Start</string>
+    <string name="stop">Stop</string>
+    <string name="clear">Clear</string>
+    <string name="status_running">Status: Running</string>
+    <string name="status_stopped">Status: Stopped</string>
+    <string name="monitor_started">Monitor started</string>
+    <string name="monitor_stopped">Monitor stopped</string>
+    <string name="recent_list_cleared">Recent list cleared</string>
+    <string name="recent_screenshots_count">Recent screenshots (%d)</string>
+    <string name="no_screenshots">No screenshots detected yet</string>
+</resources>

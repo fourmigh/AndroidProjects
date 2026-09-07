@@ -1,0 +1,27 @@
+<resources>
+    <string name="confirm_title">确认记账</string>
+    <string name="cancel">取消</string>
+    <string name="screenshot_desc">截图</string>
+    <string name="amount_info">金额信息</string>
+    <string name="actual_amount">实付金额</string>
+    <string name="discount_amount">优惠金额</string>
+    <string name="original_amount_label">原价金额</string>
+    <string name="items_detail">商品明细</string>
+    <string name="add_item">+ 添加</string>
+    <string name="ocr_raw_text">OCR 原文</string>
+    <string name="no_text">(无文本)</string>
+    <string name="save">保存</string>
+    <string name="saved">已保存</string>
+    <string name="item_label">商品</string>
+    <string name="delete">删除</string>
+    <string name="name">名称</string>
+    <string name="unit_price">单价</string>
+    <string name="quantity">数量</string>
+    <string name="subtotal">小计</string>
+    <string name="accounting_records">记账记录</string>
+    <string name="no_records">暂无记录</string>
+    <string name="record_number">记录 #%d</string>
+    <string name="paid_amount">实付: ¥%s</string>
+    <string name="discount_display">优惠: ¥%s</string>
+    <string name="items_count">商品: %d 件</string>
+</resources>

@@ -1,0 +1,8 @@
+<resources>
+    <string name="ocr_test_title">OCR 测试</string>
+    <string name="select_image">选择图片</string>
+    <string name="engine_ready">引擎就绪</string>
+    <string name="processing">处理中…</string>
+    <string name="error_format">错误: %s</string>
+    <string name="found_text_blocks">找到 %d 个文本块</string>
+</resources>

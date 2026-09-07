@@ -1,0 +1,13 @@
+<resources>
+    <string name="parser_test_title">解析器测试</string>
+    <string name="select_parser">选择解析器</string>
+    <string name="input_ocr_text">输入 OCR 文本</string>
+    <string name="ocr_text_placeholder">在此粘贴 OCR 识别的文本…</string>
+    <string name="parse">解析</string>
+    <string name="parse_result">解析结果</string>
+    <string name="amount_label">金额</string>
+    <string name="discount_label">优惠</string>
+    <string name="original_label">原价</string>
+    <string name="items_label">商品</string>
+    <string name="items_detail_label">商品明细:</string>
+</resources>
