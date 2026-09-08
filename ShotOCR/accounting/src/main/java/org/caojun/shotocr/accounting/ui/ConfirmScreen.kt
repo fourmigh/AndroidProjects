@@ -1,8 +1,13 @@
 package org.caojun.shotocr.accounting.ui
 
+import android.graphics.BitmapFactory
 import android.net.Uri
+import android.graphics.Bitmap
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -12,33 +17,47 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil.compose.rememberAsyncImagePainter
+import kotlinx.coroutines.launch
 import org.caojun.shotocr.accounting.AccountingManager
 import org.caojun.shotocr.accounting.EditableReceipt
 import org.caojun.shotocr.accounting.EditableReceiptItem
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun ConfirmScreen(
     receipt: EditableReceipt,
-    onSaved: () -> Unit = {},
+    onSaved: (EditableReceipt) -> Unit = {},
     onCancel: () -> Unit = {}
 ) {
     var amount by remember { mutableStateOf(receipt.amount) }
     var discount by remember { mutableStateOf(receipt.discount) }
     var originalAmount by remember { mutableStateOf(receipt.originalAmount) }
+    var storeName by remember { mutableStateOf(receipt.storeName) }
+    var paymentTime by remember { mutableStateOf(receipt.paymentTime) }
+    var paymentMethod by remember { mutableStateOf(receipt.paymentMethod) }
+    var orderNumber by remember { mutableStateOf(receipt.orderNumber) }
     var items by remember { mutableStateOf(receipt.items) }
     var showSaveToast by remember { mutableStateOf(false) }
     var showFullscreenImage by remember { mutableStateOf(false) }
+    var rawTextExpanded by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val clipboardManager = LocalClipboardManager.current
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(org.caojun.shotocr.accounting.R.string.confirm_title)) },
@@ -54,10 +73,28 @@ fun ConfirmScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .imePadding()
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp)
         ) {
-            if (receipt.screenshotUri != Uri.EMPTY) {
+            val screenshotBitmap = remember(receipt.screenshotImage) {
+                receipt.screenshotImage?.let { bytes ->
+                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                }
+            }
+
+            if (screenshotBitmap != null) {
+                Image(
+                    bitmap = screenshotBitmap.asImageBitmap(),
+                    contentDescription = stringResource(org.caojun.shotocr.accounting.R.string.screenshot_desc),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp)
+                        .clickable { showFullscreenImage = true },
+                    contentScale = ContentScale.Fit
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+            } else if (receipt.screenshotUri != Uri.EMPTY) {
                 Image(
                     painter = rememberAsyncImagePainter(receipt.screenshotUri),
                     contentDescription = stringResource(org.caojun.shotocr.accounting.R.string.screenshot_desc),
@@ -82,12 +119,21 @@ fun ConfirmScreen(
                             .padding(16.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Image(
-                            painter = rememberAsyncImagePainter(receipt.screenshotUri),
-                            contentDescription = stringResource(org.caojun.shotocr.accounting.R.string.screenshot_desc),
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Fit
-                        )
+                        if (screenshotBitmap != null) {
+                            Image(
+                                bitmap = screenshotBitmap.asImageBitmap(),
+                                contentDescription = stringResource(org.caojun.shotocr.accounting.R.string.screenshot_desc),
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Fit
+                            )
+                        } else {
+                            Image(
+                                painter = rememberAsyncImagePainter(receipt.screenshotUri),
+                                contentDescription = stringResource(org.caojun.shotocr.accounting.R.string.screenshot_desc),
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Fit
+                            )
+                        }
                     }
                 }
             }
@@ -123,6 +169,50 @@ fun ConfirmScreen(
                         value = originalAmount,
                         onValueChange = { originalAmount = it },
                         label = { Text(stringResource(org.caojun.shotocr.accounting.R.string.original_amount_label)) },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = stringResource(org.caojun.shotocr.accounting.R.string.bill_info),
+                        fontSize = 16.sp,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    OutlinedTextField(
+                        value = storeName,
+                        onValueChange = { storeName = it },
+                        label = { Text(stringResource(org.caojun.shotocr.accounting.R.string.store_name)) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp)
+                    )
+                    OutlinedTextField(
+                        value = paymentTime,
+                        onValueChange = { paymentTime = it },
+                        label = { Text(stringResource(org.caojun.shotocr.accounting.R.string.payment_time)) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp)
+                    )
+                    OutlinedTextField(
+                        value = paymentMethod,
+                        onValueChange = { paymentMethod = it },
+                        label = { Text(stringResource(org.caojun.shotocr.accounting.R.string.payment_method)) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp)
+                    )
+                    OutlinedTextField(
+                        value = orderNumber,
+                        onValueChange = { orderNumber = it },
+                        label = { Text(stringResource(org.caojun.shotocr.accounting.R.string.order_number)) },
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -178,32 +268,69 @@ fun ConfirmScreen(
                 )
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = stringResource(org.caojun.shotocr.accounting.R.string.ocr_raw_text),
-                        fontSize = 16.sp,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-                    Text(
-                        text = receipt.rawText.ifEmpty { stringResource(org.caojun.shotocr.accounting.R.string.no_text) },
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { rawTextExpanded = !rawTextExpanded }
+                            .padding(bottom = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = stringResource(org.caojun.shotocr.accounting.R.string.ocr_raw_text),
+                            fontSize = 16.sp
+                        )
+                        Text(
+                            text = if (rawTextExpanded) stringResource(org.caojun.shotocr.accounting.R.string.collapse)
+                                   else stringResource(org.caojun.shotocr.accounting.R.string.expand),
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    AnimatedVisibility(visible = rawTextExpanded) {
+                        val copyTextHint = stringResource(org.caojun.shotocr.accounting.R.string.copy_raw_text)
+                        Text(
+                            text = receipt.rawText.ifEmpty { stringResource(org.caojun.shotocr.accounting.R.string.no_text) },
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier
+                                .padding(top = 8.dp)
+                                .combinedClickable(
+                                    onClick = { },
+                                    onLongClick = {
+                                        if (receipt.rawText.isNotEmpty()) {
+                                            clipboardManager.setText(AnnotatedString(receipt.rawText))
+                                            scope.launch {
+                                                snackbarHostState.showSnackbar(copyTextHint)
+                                            }
+                                        }
+                                    }
+                                )
+                        )
+                    }
                 }
             }
 
             Button(
                 onClick = {
                     val savedReceipt = EditableReceipt(
+                        id = receipt.id,
                         screenshotUri = receipt.screenshotUri,
+                        screenshotImage = receipt.screenshotImage,
                         rawText = receipt.rawText,
                         amount = amount,
                         discount = discount,
                         originalAmount = originalAmount,
+                        storeName = storeName,
+                        paymentTime = paymentTime,
+                        paymentMethod = paymentMethod,
+                        orderNumber = orderNumber,
                         items = items
                     )
-                    AccountingManager.save(savedReceipt)
-                    showSaveToast = true
-                    onSaved()
+                    scope.launch {
+                        showSaveToast = true
+                        onSaved(savedReceipt)
+                    }
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {

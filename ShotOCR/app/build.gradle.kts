@@ -63,6 +63,7 @@ dependencies {
     implementation(project(":data-parser"))
     implementation(project(":screenshot-monitor"))
     implementation(project(":accounting"))
+    implementation(project(":database"))
 
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")

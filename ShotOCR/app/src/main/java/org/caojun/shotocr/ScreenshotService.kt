@@ -151,6 +151,10 @@ class ScreenshotService : LifecycleService() {
                 putExtra("amount", receiptData.amount?.toString() ?: "")
                 putExtra("discount", receiptData.discount?.toString() ?: "")
                 putExtra("original_amount", receiptData.originalAmount?.toString() ?: "")
+                putExtra("store_name", receiptData.storeName ?: "")
+                putExtra("payment_time", receiptData.paymentTime ?: "")
+                putExtra("payment_method", receiptData.paymentMethod ?: "")
+                putExtra("order_number", receiptData.orderNumber ?: "")
 
                 val names = ArrayList(receiptData.items.map { it.name })
                 val prices = ArrayList(receiptData.items.map { it.price?.toString() ?: "" })

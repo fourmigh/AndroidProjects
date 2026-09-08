@@ -4,6 +4,10 @@ data class ReceiptData(
     val amount: Double?,
     val discount: Double?,
     val originalAmount: Double?,
+    val storeName: String?,
+    val paymentTime: String?,
+    val paymentMethod: String?,
+    val orderNumber: String?,
     val items: List<ReceiptItem>,
     val rawText: String
 )

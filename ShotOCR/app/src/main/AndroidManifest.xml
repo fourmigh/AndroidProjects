@@ -34,6 +34,12 @@
             android:label="确认记账"
             android:theme="@style/Theme.ShotOCR"
             tools:replace="android:exported,android:label,android:theme" />
+
+        <activity
+            android:name="org.caojun.shotocr.accounting.ui.BillListActivity"
+            android:exported="false"
+            android:label="账单记录"
+            android:theme="@style/Theme.ShotOCR" />
     </application>
 
 </manifest>

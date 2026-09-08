@@ -16,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
 import org.caojun.shotocr.accounting.AccountingManager
 import org.caojun.shotocr.accounting.EditableReceipt
 
@@ -71,6 +72,8 @@ fun AccountingTestScreen() {
 
 @Composable
 fun RecordCard(receipt: EditableReceipt, index: Int) {
+    val scope = rememberCoroutineScope()
+
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp)) {
             Row(
@@ -81,12 +84,22 @@ fun RecordCard(receipt: EditableReceipt, index: Int) {
                     text = stringResource(org.caojun.shotocr.accounting.R.string.record_number, index + 1),
                     fontSize = 14.sp
                 )
-                TextButton(onClick = { AccountingManager.delete(index) }) {
+                TextButton(onClick = {
+                    scope.launch {
+                        AccountingManager.delete(receipt)
+                    }
+                }) {
                     Text(
                         stringResource(org.caojun.shotocr.accounting.R.string.delete),
                         color = MaterialTheme.colorScheme.error
                     )
                 }
+            }
+            if (receipt.storeName.isNotEmpty()) {
+                Text(
+                    text = stringResource(org.caojun.shotocr.accounting.R.string.store_name_display, receipt.storeName),
+                    fontSize = 14.sp
+                )
             }
             if (receipt.amount.isNotEmpty()) {
                 Text(
@@ -97,6 +110,12 @@ fun RecordCard(receipt: EditableReceipt, index: Int) {
             if (receipt.discount.isNotEmpty()) {
                 Text(
                     text = stringResource(org.caojun.shotocr.accounting.R.string.discount_display, receipt.discount),
+                    fontSize = 14.sp
+                )
+            }
+            if (receipt.paymentTime.isNotEmpty()) {
+                Text(
+                    text = stringResource(org.caojun.shotocr.accounting.R.string.payment_time_display, receipt.paymentTime),
                     fontSize = 14.sp
                 )
             }

@@ -6,6 +6,11 @@
     <string name="actual_amount">实付金额</string>
     <string name="discount_amount">优惠金额</string>
     <string name="original_amount_label">原价金额</string>
+    <string name="bill_info">账单信息</string>
+    <string name="store_name">店名</string>
+    <string name="payment_time">支付时间</string>
+    <string name="payment_method">付款方式</string>
+    <string name="order_number">订单号</string>
     <string name="items_detail">商品明细</string>
     <string name="add_item">+ 添加</string>
     <string name="ocr_raw_text">OCR 原文</string>
@@ -23,5 +28,14 @@
     <string name="record_number">记录 #%d</string>
     <string name="paid_amount">实付: ¥%s</string>
     <string name="discount_display">优惠: ¥%s</string>
+    <string name="store_name_display">店铺: %s</string>
+    <string name="payment_time_display">时间: %s</string>
     <string name="items_count">商品: %d 件</string>
+    <string name="expand">▼ 展开</string>
+    <string name="collapse">▲ 收起</string>
+    <string name="copy_raw_text">OCR 原文已复制到剪贴板</string>
+    <string name="payment_method_display">付款方式: %s</string>
+    <string name="order_number_display">订单号: %s</string>
+    <string name="confirm_delete_title">确认删除</string>
+    <string name="confirm_delete_message">确定要删除这条账单记录吗？</string>
 </resources>

@@ -27,6 +27,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import org.caojun.shotocr.accounting.AccountingManager
+import org.caojun.shotocr.accounting.ui.BillListActivity
 import org.caojun.shotocr.ui.theme.ShotOCRTheme
 
 class MainActivity : ComponentActivity() {
@@ -39,6 +41,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         Log.d(TAG, "onCreate")
         enableEdgeToEdge()
+        AccountingManager.init(this)
         setContent {
             ShotOCRTheme {
                 MainScreen()
@@ -240,6 +243,17 @@ fun MainScreen() {
             }
 
             Spacer(modifier = Modifier.weight(1f))
+
+            Button(
+                onClick = {
+                    context.startActivity(Intent(context, BillListActivity::class.java))
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(stringResource(R.string.view_records))
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
 
             Text(
                 text = "Powered by ONNX Runtime + OpenCV",

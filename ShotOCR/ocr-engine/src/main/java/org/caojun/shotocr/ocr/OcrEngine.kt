@@ -29,6 +29,10 @@ class OcrEngine(private val context: Context) {
     private val recImageHeight = 48
     private val recImageWidth = 320
 
+    private var detScale = 1f
+    private var detPadX = 0f
+    private var detPadY = 0f
+
     private val charset: Array<String> by lazy {
         context.assets.open("models/rec/ppocrv6_dict.txt").bufferedReader().useLines { lines ->
             lines.filter { it.isNotEmpty() }.toList().toTypedArray()
@@ -88,9 +92,25 @@ class OcrEngine(private val context: Context) {
     }
 
     private fun preprocessDet(bitmap: Bitmap): FloatArray {
-        val resized = Bitmap.createScaledBitmap(bitmap, detInputSize, detInputSize, true)
+        val origW = bitmap.width.toFloat()
+        val origH = bitmap.height.toFloat()
+        
+        detScale = maxOf(origW, origH) / detInputSize
+        val newW = (origW / detScale).toInt()
+        val newH = (origH / detScale).toInt()
+        detPadX = ((detInputSize - newW) / 2f)
+        detPadY = ((detInputSize - newH) / 2f)
+        
+        val resized = Bitmap.createScaledBitmap(bitmap, newW, newH, true)
+        val padded = Bitmap.createBitmap(detInputSize, detInputSize, Bitmap.Config.ARGB_8888)
+        val canvas = android.graphics.Canvas(padded)
+        canvas.drawColor(android.graphics.Color.WHITE)
+        canvas.drawBitmap(resized, detPadX, detPadY, null)
+        resized.recycle()
+        
         val pixels = IntArray(detInputSize * detInputSize)
-        resized.getPixels(pixels, 0, detInputSize, 0, 0, detInputSize, detInputSize)
+        padded.getPixels(pixels, 0, detInputSize, 0, 0, detInputSize, detInputSize)
+        padded.recycle()
 
         val mean = floatArrayOf(0.485f, 0.456f, 0.406f)
         val std = floatArrayOf(0.229f, 0.224f, 0.225f)
@@ -106,7 +126,6 @@ class OcrEngine(private val context: Context) {
             chw[2 * pixels.size + i] = (b - mean[2]) / std[2]
         }
 
-        resized.recycle()
         return chw
     }
 
@@ -135,19 +154,20 @@ class OcrEngine(private val context: Context) {
             binary, contours, hierarchy, Imgproc.RETR_LIST, Imgproc.CHAIN_APPROX_SIMPLE
         )
 
-        val ratio = maxOf(origW, origH).toFloat() / detInputSize
         val boxes = mutableListOf<RectF>()
 
         for (contour in contours) {
             val rect = Imgproc.boundingRect(contour)
             if (rect.area() < 100) continue
 
-            val x1 = (rect.x * ratio).coerceIn(0f, origW.toFloat())
-            val y1 = (rect.y * ratio).coerceIn(0f, origH.toFloat())
-            val x2 = ((rect.x + rect.width) * ratio).coerceIn(0f, origW.toFloat())
-            val y2 = ((rect.y + rect.height) * ratio).coerceIn(0f, origH.toFloat())
-
-            boxes.add(RectF(x1, y1, x2, y2))
+            val x1 = ((rect.x - detPadX) * detScale).coerceIn(0f, origW.toFloat())
+            val y1 = ((rect.y - detPadY) * detScale).coerceIn(0f, origH.toFloat())
+            val x2 = ((rect.x + rect.width - detPadX) * detScale).coerceIn(0f, origW.toFloat())
+            val y2 = ((rect.y + rect.height - detPadY) * detScale).coerceIn(0f, origH.toFloat())
+            
+            if (x2 > x1 && y2 > y1) {
+                boxes.add(RectF(x1, y1, x2, y2))
+            }
             contour.release()
         }
 

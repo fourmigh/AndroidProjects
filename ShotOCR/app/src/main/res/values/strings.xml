@@ -23,4 +23,5 @@
     <string name="confirm_channel_name">截图确认</string>
     <string name="confirm_channel_desc">截图识别完成后自动弹出确认界面</string>
     <string name="screenshot_detected">检测到截图，正在处理…</string>
+    <string name="view_records">查看账单记录</string>
 </resources>
