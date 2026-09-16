@@ -7,6 +7,11 @@
             android:exported="true"
             android:label="Parser Test"
             android:theme="@android:style/Theme.Material.Light.NoActionBar" />
+        <activity
+            android:name=".ui.ParserConfigActivity"
+            android:exported="true"
+            android:label="@string/parser_config_title"
+            android:theme="@android:style/Theme.Material.Light.NoActionBar" />
     </application>
 
 </manifest>

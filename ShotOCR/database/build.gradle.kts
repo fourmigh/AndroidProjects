@@ -36,7 +36,7 @@ android {
 
 dependencies {
     val roomVersion = "2.7.1"
-    implementation("androidx.room:room-runtime:$roomVersion")
+    api("androidx.room:room-runtime:$roomVersion")
     implementation("androidx.room:room-ktx:$roomVersion")
     ksp("androidx.room:room-compiler:$roomVersion")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")

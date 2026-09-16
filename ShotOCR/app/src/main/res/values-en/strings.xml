@@ -23,4 +23,6 @@
     <string name="confirm_channel_name">Screenshot Confirmation</string>
     <string name="confirm_channel_desc">Automatically show confirmation screen after screenshot recognition</string>
     <string name="screenshot_detected">Screenshot detected, processing…</string>
+    <string name="view_records">View Records</string>
+    <string name="parser_config">Parser Config</string>
 </resources>

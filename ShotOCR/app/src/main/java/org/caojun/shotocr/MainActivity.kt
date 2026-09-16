@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import org.caojun.shotocr.accounting.AccountingManager
 import org.caojun.shotocr.accounting.ui.BillListActivity
+import org.caojun.shotocr.parser.ui.ParserConfigActivity
 import org.caojun.shotocr.ui.theme.ShotOCRTheme
 
 class MainActivity : ComponentActivity() {
@@ -244,13 +245,27 @@ fun MainScreen() {
 
             Spacer(modifier = Modifier.weight(1f))
 
-            Button(
-                onClick = {
-                    context.startActivity(Intent(context, BillListActivity::class.java))
-                },
-                modifier = Modifier.fillMaxWidth()
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text(stringResource(R.string.view_records))
+                Button(
+                    onClick = {
+                        context.startActivity(Intent(context, BillListActivity::class.java))
+                    },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(stringResource(R.string.view_records))
+                }
+
+                OutlinedButton(
+                    onClick = {
+                        context.startActivity(Intent(context, ParserConfigActivity::class.java))
+                    },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(stringResource(R.string.parser_config))
+                }
             }
 
             Spacer(modifier = Modifier.height(8.dp))

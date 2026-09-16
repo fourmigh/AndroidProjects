@@ -18,7 +18,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.caojun.shotocr.monitor.ScreenshotMonitor
 import org.caojun.shotocr.ocr.OcrEngine
+import org.caojun.shotocr.parser.ConfigurableReceiptParser
+import org.caojun.shotocr.parser.DataParser
+import org.caojun.shotocr.parser.ReceiptData
+import org.caojun.shotocr.parser.ReceiptParseConfig
 import org.caojun.shotocr.parser.ReceiptParser
+import org.caojun.shotocr.database.data.AppDatabase
 import org.caojun.shotocr.accounting.ui.ConfirmActivity
 
 class ScreenshotService : LifecycleService() {
@@ -33,7 +38,7 @@ class ScreenshotService : LifecycleService() {
 
     private var monitor: ScreenshotMonitor? = null
     private var ocrEngine: OcrEngine? = null
-    private val parser = ReceiptParser()
+    private var parser: DataParser<ReceiptData> = ReceiptParser()
 
     override fun onCreate() {
         super.onCreate()
@@ -45,6 +50,20 @@ class ScreenshotService : LifecycleService() {
 
         ocrEngine = OcrEngine(applicationContext)
         Log.d(TAG, "onCreate - OcrEngine created")
+
+        lifecycleScope.launch {
+            val config = withContext(Dispatchers.IO) {
+                try {
+                    AppDatabase.getInstance(applicationContext).parserConfigDao().getDefault()?.toConfig()
+                } catch (e: Exception) {
+                    Log.w(TAG, "onCreate - Failed to load parser config, using defaults", e)
+                    null
+                }
+            }
+            parser = ConfigurableReceiptParser(config ?: ReceiptParseConfig.default())
+            Log.d(TAG, "onCreate - Parser initialized: ${if (config == null) "default" else "configured"}")
+        }
+        Log.d(TAG, "onCreate - Config loader started")
 
         monitor = ScreenshotMonitor(applicationContext).also {
             it.start()

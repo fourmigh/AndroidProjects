@@ -179,10 +179,11 @@ class OcrEngine(private val context: Context) {
     }
 
     private fun cropBitmap(bitmap: Bitmap, box: RectF): Bitmap {
-        val x = box.left.toInt().coerceIn(0, bitmap.width - 1)
-        val y = box.top.toInt().coerceIn(0, bitmap.height - 1)
-        val w = (box.right - box.left).toInt().coerceIn(1, bitmap.width - x)
-        val h = (box.bottom - box.top).toInt().coerceIn(1, bitmap.height - y)
+        val pad = maxOf(4, (box.height() * 0.15f).toInt())
+        val x = (box.left - pad).toInt().coerceIn(0, bitmap.width - 1)
+        val y = (box.top - pad).toInt().coerceIn(0, bitmap.height - 1)
+        val w = (box.right - box.left + 2 * pad).toInt().coerceIn(1, bitmap.width - x)
+        val h = (box.bottom - box.top + 2 * pad).toInt().coerceIn(1, bitmap.height - y)
         return Bitmap.createBitmap(bitmap, x, y, w, h)
     }
 
@@ -204,9 +205,18 @@ class OcrEngine(private val context: Context) {
     }
 
     private fun preprocessRec(bitmap: Bitmap): FloatArray? {
-        val resized = Bitmap.createScaledBitmap(bitmap, recImageWidth, recImageHeight, true)
+        val ratio = recImageHeight.toFloat() / bitmap.height
+        val scaledW = (bitmap.width * ratio).toInt().coerceIn(1, recImageWidth)
+        val resized = Bitmap.createScaledBitmap(bitmap, scaledW, recImageHeight, true)
+        val padded = Bitmap.createBitmap(recImageWidth, recImageHeight, Bitmap.Config.ARGB_8888)
+        val canvas = android.graphics.Canvas(padded)
+        canvas.drawColor(android.graphics.Color.WHITE)
+        canvas.drawBitmap(resized, (recImageWidth - scaledW) / 2f, 0f, null)
+        resized.recycle()
+
         val pixels = IntArray(recImageWidth * recImageHeight)
-        resized.getPixels(pixels, 0, recImageWidth, 0, 0, recImageWidth, recImageHeight)
+        padded.getPixels(pixels, 0, recImageWidth, 0, 0, recImageWidth, recImageHeight)
+        padded.recycle()
 
         val mean = floatArrayOf(0.5f, 0.5f, 0.5f)
         val std = floatArrayOf(0.5f, 0.5f, 0.5f)
@@ -222,7 +232,6 @@ class OcrEngine(private val context: Context) {
             chw[2 * pixels.size + i] = (b - mean[2]) / std[2]
         }
 
-        resized.recycle()
         return chw
     }
 

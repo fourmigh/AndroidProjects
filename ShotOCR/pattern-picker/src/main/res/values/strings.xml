@@ -1,0 +1,12 @@
+<resources>
+    <string name="pattern_picker_title">选择正则模式</string>
+    <string name="preset_templates">预设模板</string>
+    <string name="custom_regex">自定义正则…</string>
+    <string name="custom_regex_label">自定义正则表达式</string>
+    <string name="test_area">测试区域</string>
+    <string name="test_input_hint">粘贴样例文本测试匹配…</string>
+    <string name="match_result">匹配结果:</string>
+    <string name="no_match">无匹配</string>
+    <string name="confirm_select">确认选择</string>
+    <string name="example_prefix">匹配示例: %s</string>
+</resources>

@@ -33,14 +33,46 @@ if not exist "%PROJECT_DIR%\gradlew.bat" (
 )
 
 echo [1/5] Checking device connection...
-set "DEVICE_ID="
-for /f "delims=" %%d in ('"%ADB%" get-serialno 2^>nul') do set "DEVICE_ID=%%d"
-if "%DEVICE_ID%"=="" (
+set "DEVICE_COUNT=0"
+for /f "skip=1 tokens=1,2" %%a in ('"%ADB%" devices') do (
+    if "%%b"=="device" (
+        set /a "DEVICE_COUNT+=1"
+        set "DEVICE_!DEVICE_COUNT!=%%a"
+    )
+)
+
+if "%DEVICE_COUNT%"=="0" (
     echo [ERROR] No device connected. Please connect a device or start an emulator.
     echo         Run: adb devices to check.
     exit /b 1
 )
-echo        Device: %DEVICE_ID%
+
+if "%DEVICE_COUNT%"=="1" (
+    set "DEVICE_ID=!DEVICE_1!"
+    echo        Device: !DEVICE_ID!
+    goto :device_selected
+)
+
+echo        Found %DEVICE_COUNT% devices:
+for /l %%i in (1,1,%DEVICE_COUNT%) do (
+    echo          [%%i] !DEVICE_%%i!
+)
+echo.
+set /p "DEVICE_CHOICE=Select device [1-%DEVICE_COUNT%]: "
+
+if "!DEVICE_CHOICE!"=="" goto :invalid_choice
+if !DEVICE_CHOICE! LSS 1 goto :invalid_choice
+if !DEVICE_CHOICE! GTR %DEVICE_COUNT% goto :invalid_choice
+
+set "DEVICE_ID=!DEVICE_%DEVICE_CHOICE%!"
+echo        Selected: !DEVICE_ID!
+goto :device_selected
+
+:invalid_choice
+echo [ERROR] Invalid selection. Please enter a number between 1 and %DEVICE_COUNT%.
+exit /b 1
+
+:device_selected
 
 echo [2/5] Building %BUILD_TYPE% APK...
 if "%DO_CLEAN%"=="1" (
@@ -84,7 +116,7 @@ echo        APK: %APK_PATH%
 echo        Size: %APK_SIZE_MB% MB
 
 echo [4/5] Installing APK...
-"%ADB%" install -r "%APK_PATH%" 2>&1
+"%ADB%" -s "%DEVICE_ID%" install -r "%APK_PATH%" 2>&1
 if errorlevel 1 (
     echo [ERROR] Install failed.
     exit /b 1
@@ -103,7 +135,7 @@ if "%PKG_NAME%"=="" (
     goto :done
 )
 
-"%ADB%" shell monkey -p "%PKG_NAME%" -c android.intent.category.LAUNCHER 1 >nul 2>&1
+"%ADB%" -s "%DEVICE_ID%" shell monkey -p "%PKG_NAME%" -c android.intent.category.LAUNCHER 1 >nul 2>&1
 if errorlevel 1 (
     echo        [WARN] Failed to launch app automatically.
 ) else (

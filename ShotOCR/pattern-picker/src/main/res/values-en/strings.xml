@@ -1,0 +1,12 @@
+<resources>
+    <string name="pattern_picker_title">Select Pattern</string>
+    <string name="preset_templates">Preset Templates</string>
+    <string name="custom_regex">Custom regex…</string>
+    <string name="custom_regex_label">Custom regex pattern</string>
+    <string name="test_area">Test Area</string>
+    <string name="test_input_hint">Paste sample text to test matching…</string>
+    <string name="match_result">Match result:</string>
+    <string name="no_match">No match</string>
+    <string name="confirm_select">Confirm</string>
+    <string name="example_prefix">Example: %s</string>
+</resources>
