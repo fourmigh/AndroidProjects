@@ -1,0 +1,37 @@
+# 统一换行符策略，避免 Windows/WSL 切换后误报修改
+# 文本文件统一按 LF 入库与检出（.bat/.ps1 除外，需保留 CRLF）
+
+* text=auto
+
+*.kt text eol=lf
+*.java text eol=lf
+*.xml text eol=lf
+*.txt text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.properties text eol=lf
+*.pro text eol=lf
+*.cfg text eol=lf
+*.gradle text eol=lf
+*.kts text eol=lf
+
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# 二进制文件
+*.jar binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.bmp binary
+*.db binary
+*.bin binary
+*.ttf binary
+*.woff binary
+*.woff2 binary
+*.mp3 binary
+*.mp4 binary
+*.keystore binary
+*.jks binary
