@@ -1,0 +1,4 @@
+<resources>
+    <style name="Theme.WalletLoginDemo" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="zxing_CaptureTheme" parent="Theme.AppCompat.Light.NoActionBar" />
+</resources>

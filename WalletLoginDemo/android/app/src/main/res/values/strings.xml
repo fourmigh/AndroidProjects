@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Wallet 登录 Demo</string>
+    <string name="nfc_service_desc">NFC 登录卡模拟</string>
+    <string name="nfc_aid_group">NFC 登录</string>
+</resources>

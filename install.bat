@@ -12,12 +12,15 @@ if "%~1"=="--help" goto :usage
 set "PROJECT=%~1"
 set "BUILD_TYPE=debug"
 set "DO_CLEAN=0"
+set "BACKEND_PORT=3000"
 
 shift
 :parse_args
 if "%~1"=="" goto :done_args
 if /i "%~1"=="release" set "BUILD_TYPE=release"
 if /i "%~1"=="clean" set "DO_CLEAN=1"
+set "ARG=%~1"
+if /i "!ARG:~0,5!"=="port:" set "BACKEND_PORT=!ARG:~5!"
 shift
 goto :parse_args
 :done_args
@@ -28,8 +31,13 @@ if not exist "%PROJECT_DIR%" (
     exit /b 1
 )
 if not exist "%PROJECT_DIR%\gradlew.bat" (
-    echo [ERROR] gradlew.bat not found in %PROJECT%
-    exit /b 1
+    if exist "%PROJECT_DIR%\android\gradlew.bat" (
+        set "PROJECT_DIR=!PROJECT_DIR!\android"
+        echo        Detected Android subproject: %PROJECT%\android
+    ) else (
+        echo [ERROR] gradlew.bat not found in %PROJECT%
+        exit /b 1
+    )
 )
 
 echo [1/5] Checking device connection...
@@ -75,6 +83,14 @@ exit /b 1
 :device_selected
 
 echo [2/5] Building %BUILD_TYPE% APK...
+echo        Resolving backend URL for local.properties...
+set "TMP_URL=%TEMP%\wld_backend_url.txt"
+powershell -NoProfile -Command "$c=@(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object { $_.IPAddress -notmatch '^(127\.|169\.254\.)' } | ForEach-Object IPAddress); $p=$c | Where-Object { $_ -match '^192\.168\.' } | Select-Object -First 1; if(-not $p){$p=$c | Select-Object -First 1}; if(-not $p){$p='127.0.0.1'}; $u='http://'+$p+':%BACKEND_PORT%'; $f=Join-Path '%PROJECT_DIR%' 'local.properties'; $l=@(); if(Test-Path $f){$l=@(Get-Content $f)}; $l=@($l | Where-Object { $_ -notmatch '^\s*backend\.url\s*=' }); $l+='backend.url='+$u; Set-Content -Path $f -Value $l -Encoding ASCII; Set-Content -Path '%TMP_URL%' -Value $u -Encoding ASCII"
+set /p BACKEND_URL=<"%TMP_URL%"
+del "%TMP_URL%" >nul 2>&1
+if "!BACKEND_URL!"=="" set "BACKEND_URL=http://127.0.0.1:%BACKEND_PORT%"
+echo        backend.url=!BACKEND_URL!
+echo        written to %PROJECT_DIR%\local.properties
 if "%DO_CLEAN%"=="1" (
     echo        Cleaning previous build...
     pushd "%PROJECT_DIR%"
@@ -153,17 +169,21 @@ echo.
 exit /b 0
 
 :usage
-echo Usage: install ^<project-folder^> [release] [clean]
+echo Usage: install ^<project-folder^> [release] [clean] [port:^<n^>]
 echo.
 echo Parameters:
 echo   project-folder   Project folder name (required)
 echo   release          Build release APK (default: debug)
 echo   clean            Clean before building
+echo   port:^<n^>         Backend port written to local.properties (default: 3000)
+echo.
+echo Note: this script auto-detects the PC IPv4 and writes
+echo       backend.url=http://^<ip^>:^<port^> into the project's local.properties.
 echo.
 echo Examples:
+echo   install WalletLoginDemo
+echo   install WalletLoginDemo port:3000
 echo   install ShotOCR
-echo   install ShotOCR release
-echo   install ShotOCR clean
 echo   install ShotOCR release clean
 echo.
 exit /b 0
