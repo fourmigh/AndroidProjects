@@ -32,6 +32,8 @@ import kotlinx.coroutines.launch
 import org.caojun.shotocr.accounting.AccountingManager
 import org.caojun.shotocr.accounting.EditableReceipt
 import org.caojun.shotocr.accounting.EditableReceiptItem
+import org.caojun.shotocr.classification.repository.CategoryRepository
+import org.caojun.shotocr.classification.ui.CategorySelectField
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -48,6 +50,7 @@ fun ConfirmScreen(
     var paymentMethod by remember { mutableStateOf(receipt.paymentMethod) }
     var orderNumber by remember { mutableStateOf(receipt.orderNumber) }
     var items by remember { mutableStateOf(receipt.items) }
+    var categoryId by remember { mutableStateOf(receipt.categoryId) }
     var showSaveToast by remember { mutableStateOf(false) }
     var showFullscreenImage by remember { mutableStateOf(false) }
     var rawTextExpanded by remember { mutableStateOf(false) }
@@ -262,10 +265,7 @@ fun ConfirmScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                )
+                    .padding(bottom = 16.dp)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(
@@ -282,7 +282,7 @@ fun ConfirmScreen(
                         )
                         Text(
                             text = if (rawTextExpanded) stringResource(org.caojun.shotocr.accounting.R.string.collapse)
-                                   else stringResource(org.caojun.shotocr.accounting.R.string.expand),
+                               else stringResource(org.caojun.shotocr.accounting.R.string.expand),
                             fontSize = 14.sp,
                             color = MaterialTheme.colorScheme.primary
                         )
@@ -311,6 +311,19 @@ fun ConfirmScreen(
                 }
             }
 
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    CategorySelectField(
+                        categoryId = categoryId,
+                        onCategorySelected = { categoryId = it }
+                    )
+                }
+            }
+
             Button(
                 onClick = {
                     val savedReceipt = EditableReceipt(
@@ -325,7 +338,8 @@ fun ConfirmScreen(
                         paymentTime = paymentTime,
                         paymentMethod = paymentMethod,
                         orderNumber = orderNumber,
-                        items = items
+                        items = items,
+                        categoryId = categoryId
                     )
                     scope.launch {
                         showSaveToast = true

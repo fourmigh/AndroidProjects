@@ -19,6 +19,7 @@ import kotlinx.coroutines.withContext
 import org.caojun.shotocr.accounting.AccountingManager
 import org.caojun.shotocr.accounting.EditableReceipt
 import org.caojun.shotocr.accounting.EditableReceiptItem
+import org.caojun.shotocr.classification.repository.CategoryRepository
 import java.io.ByteArrayOutputStream
 
 class ConfirmActivity : ComponentActivity() {
@@ -44,6 +45,7 @@ class ConfirmActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        CategoryRepository.init(this)
 
         val receiptId = intent.getLongExtra("receipt_id", -1)
         val uriString = intent.getStringExtra("screenshot_uri") ?: ""

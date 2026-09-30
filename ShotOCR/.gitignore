@@ -13,3 +13,10 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# 构建 / 安装日志
+*.log
+
+# 离线翻译模型（488MB），用 translate-engine/download-models.ps1 重新下载
+/translate-engine/src/main/assets/translate/
+

@@ -145,35 +145,70 @@ open class ReceiptParser : DataParser<ReceiptData> {
                 continue
             }
 
-            var bestValue: Double? = null
-            var bestIndex = -1
-            for (offset in -3..3) {
-                if (offset == 0) continue
-                val j = i + offset
-                if (j < 0 || j >= lines.size || j in processedIndices) continue
-                val adjacentLine = lines[j]
-                if (discountKeywords.any { kw -> adjacentLine.contains(kw) }) continue
-                if (datePattern.containsMatchIn(adjacentLine)) continue
-                if (containsYearValue(adjacentLine)) continue
-                val adjMatch = amountPattern.find(adjacentLine)
-                if (adjMatch != null) {
-                    val value = adjMatch.groupValues[1].toDoubleOrNull()
-                    if (value == null || Math.abs(value) <= 0) continue
-                    if (originalAmount != null && Math.abs(value) > originalAmount) continue
-                    if (bestValue == null || Math.abs(value) < Math.abs(bestValue)) {
-                        bestValue = value
-                        bestIndex = j
-                    }
-                }
-            }
-            if (bestValue != null) {
-                totalDiscount += Math.abs(bestValue)
+            val neighbor = selectDiscountNeighbor(
+                lines, i, amountPattern, discountKeywords, datePattern, originalAmount, processedIndices
+            )
+            if (neighbor != null) {
+                totalDiscount += Math.abs(neighbor.second)
                 found = true
-                processedIndices.add(bestIndex)
+                processedIndices.add(neighbor.first)
             }
         }
 
         return if (found) Math.round(totalDiscount * 100.0) / 100.0 else null
+    }
+
+    protected open fun selectDiscountNeighbor(
+        lines: List<String>,
+        index: Int,
+        amountPattern: Regex,
+        discountKeywords: List<String>,
+        datePattern: Regex,
+        originalAmount: Double?,
+        processedIndices: Set<Int>
+    ): Pair<Int, Double>? {
+        val offsets = mutableListOf<Int>()
+        for (distance in 1..3) {
+            offsets.add(distance)
+            offsets.add(-distance)
+        }
+
+        for (offset in offsets) {
+            val j = index + offset
+            if (j < 0 || j >= lines.size || j in processedIndices) continue
+            val adjacentLine = lines[j]
+            if (!discountKeywords.any { adjacentLine.contains(it) }) continue
+            val value = discountAdjacentValue(adjacentLine, amountPattern, datePattern, originalAmount) ?: continue
+            return j to value
+        }
+
+        var best: Pair<Int, Double>? = null
+        for (offset in offsets) {
+            val j = index + offset
+            if (j < 0 || j >= lines.size || j in processedIndices) continue
+            val adjacentLine = lines[j]
+            if (discountKeywords.any { adjacentLine.contains(it) }) continue
+            val value = discountAdjacentValue(adjacentLine, amountPattern, datePattern, originalAmount) ?: continue
+            if (best == null || Math.abs(value) < Math.abs(best.second)) {
+                best = j to value
+            }
+        }
+        return best
+    }
+
+    protected open fun discountAdjacentValue(
+        line: String,
+        amountPattern: Regex,
+        datePattern: Regex,
+        originalAmount: Double?
+    ): Double? {
+        if (datePattern.containsMatchIn(line)) return null
+        if (containsYearValue(line)) return null
+        val match = amountPattern.find(line) ?: return null
+        val value = match.groupValues[1].toDoubleOrNull() ?: return null
+        if (Math.abs(value) <= 0) return null
+        if (originalAmount != null && Math.abs(value) > originalAmount) return null
+        return value
     }
 
     protected open fun containsYearValue(line: String): Boolean =

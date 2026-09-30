@@ -23,7 +23,8 @@ data class EditableReceipt(
     val paymentTime: String = "",
     val paymentMethod: String = "",
     val orderNumber: String = "",
-    val items: List<EditableReceiptItem> = emptyList()
+    val items: List<EditableReceiptItem> = emptyList(),
+    val categoryId: String = DEFAULT_CATEGORY_ID
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -39,7 +40,8 @@ data class EditableReceipt(
                 paymentTime == other.paymentTime &&
                 paymentMethod == other.paymentMethod &&
                 orderNumber == other.orderNumber &&
-                items == other.items
+                items == other.items &&
+                categoryId == other.categoryId
     }
 
     override fun hashCode(): Int {
@@ -55,10 +57,13 @@ data class EditableReceipt(
         result = 31 * result + paymentMethod.hashCode()
         result = 31 * result + orderNumber.hashCode()
         result = 31 * result + items.hashCode()
+        result = 31 * result + categoryId.hashCode()
         return result
     }
 
     companion object {
+        const val DEFAULT_CATEGORY_ID = "uncategorized"
+
         fun from(receiptData: ReceiptData, screenshotUri: Uri): EditableReceipt {
             return EditableReceipt(
                 screenshotUri = screenshotUri,

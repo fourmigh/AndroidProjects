@@ -90,6 +90,51 @@ class ReceiptParserTest {
         assertEquals(0.5, result.discount!!, 0.001)
     }
 
+    private val unionPayTextAmountBelowOrder = """
+        日名引{841414:00:41144支
+        马
+        云闪付交易详情
+        上海公共交通卡股份有限公司
+        -¥4.50
+        优惠信息
+        上海地铁出行优惠卡-¥0.50
+        交易成功
+        当前状态
+        ¥5.00
+        订单金额
+        上海银行银联信用卡[9320]
+        付款方式
+        延迟扣费|2026年9月30日
+        扣款时间
+        08:59:27
+        莘庄2026年9月30日06:16:50
+        乘车信息
+        塘桥2026年9月30日06:59:19
+        801342595704904359387
+        交易流水号
+        1422508132364468224
+        商户订单号
+        在此商户的交易
+    """.trimIndent()
+
+    @Test
+    fun basicParser_amountBelowOrderAmount_parsesDiscountCorrectly() {
+        val result = ReceiptParser().parse(unionPayTextAmountBelowOrder)
+
+        assertEquals(5.0, result.originalAmount!!, 0.001)
+        assertEquals(4.5, result.amount!!, 0.001)
+        assertEquals(0.5, result.discount!!, 0.001)
+    }
+
+    @Test
+    fun configurableParser_amountBelowOrderAmount_parsesDiscountCorrectly() {
+        val result = ConfigurableReceiptParser(ReceiptParseConfig.default()).parse(unionPayTextAmountBelowOrder)
+
+        assertEquals(5.0, result.originalAmount!!, 0.001)
+        assertEquals(4.5, result.amount!!, 0.001)
+        assertEquals(0.5, result.discount!!, 0.001)
+    }
+
     @Test
     fun basicParser_noDiscount_returnsNullDiscount() {
         val text = """

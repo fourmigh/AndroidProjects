@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import org.caojun.shotocr.accounting.AccountingManager
 import org.caojun.shotocr.accounting.ui.BillListActivity
+import org.caojun.shotocr.classification.repository.CategoryRepository
 import org.caojun.shotocr.parser.ui.ParserConfigActivity
 import org.caojun.shotocr.ui.theme.ShotOCRTheme
 
@@ -43,6 +44,7 @@ class MainActivity : ComponentActivity() {
         Log.d(TAG, "onCreate")
         enableEdgeToEdge()
         AccountingManager.init(this)
+        CategoryRepository.init(this)
         setContent {
             ShotOCRTheme {
                 MainScreen()
@@ -247,7 +249,7 @@ fun MainScreen() {
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Button(
                     onClick = {
@@ -256,6 +258,15 @@ fun MainScreen() {
                     modifier = Modifier.weight(1f)
                 ) {
                     Text(stringResource(R.string.view_records))
+                }
+
+                OutlinedButton(
+                    onClick = {
+                        context.startActivity(Intent(context, ClassificationManagementActivity::class.java))
+                    },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(stringResource(org.caojun.shotocr.classification.R.string.category_entry))
                 }
 
                 OutlinedButton(

@@ -9,12 +9,17 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import org.caojun.shotocr.database.category.DefaultCategories
 import org.caojun.shotocr.parser.ReceiptParseConfig
 
-@Database(entities = [ReceiptEntity::class, ParserConfigEntity::class], version = 6)
+@Database(
+    entities = [ReceiptEntity::class, ParserConfigEntity::class, CategoryEntity::class],
+    version = 8
+)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun receiptDao(): ReceiptDao
     abstract fun parserConfigDao(): ParserConfigDao
+    abstract fun categoryDao(): CategoryDao
 
     companion object {
         @Volatile
@@ -78,6 +83,30 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS categories (
+                        id TEXT NOT NULL,
+                        name TEXT NOT NULL,
+                        parentId TEXT,
+                        isDefault INTEGER NOT NULL DEFAULT 0,
+                        sortOrder INTEGER NOT NULL DEFAULT 0,
+                        PRIMARY KEY(id)
+                    )
+                """.trimIndent())
+                db.execSQL("ALTER TABLE receipts ADD COLUMN categoryId TEXT NOT NULL DEFAULT 'uncategorized'")
+            }
+        }
+
+        private val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE categories ADD COLUMN namesJson TEXT NOT NULL DEFAULT '{}'"
+                )
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 Room.databaseBuilder(
@@ -85,16 +114,38 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "shotocr.db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                    .addMigrations(
+                        MIGRATION_1_2,
+                        MIGRATION_2_3,
+                        MIGRATION_3_4,
+                        MIGRATION_4_5,
+                        MIGRATION_5_6,
+                        MIGRATION_6_7,
+                        MIGRATION_7_8
+                    )
                     .addCallback(object : Callback() {
                         override fun onCreate(db: SupportSQLiteDatabase) {
                             super.onCreate(db)
+                            val appContext = context.applicationContext
                             CoroutineScope(Dispatchers.IO).launch {
-                                getInstance(context).parserConfigDao().let { dao ->
-                                    if (dao.count() == 0) {
-                                        val defaultConfig = ReceiptParseConfig.default()
-                                        dao.insert(ParserConfigEntity.fromConfig(defaultConfig))
-                                    }
+                                val database = getInstance(appContext)
+                                if (database.parserConfigDao().count() == 0) {
+                                    database.parserConfigDao()
+                                        .insert(ParserConfigEntity.fromConfig(ReceiptParseConfig.default()))
+                                }
+                                if (database.categoryDao().count() == 0) {
+                                    database.categoryDao().insertAll(DefaultCategories.toEntities())
+                                }
+                            }
+                        }
+
+                        override fun onOpen(db: SupportSQLiteDatabase) {
+                            super.onOpen(db)
+                            val appContext = context.applicationContext
+                            CoroutineScope(Dispatchers.IO).launch {
+                                val categoryDao = getInstance(appContext).categoryDao()
+                                if (categoryDao.count() == 0) {
+                                    categoryDao.insertAll(DefaultCategories.toEntities())
                                 }
                             }
                         }

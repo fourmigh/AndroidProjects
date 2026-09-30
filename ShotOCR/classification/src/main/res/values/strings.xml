@@ -1,0 +1,34 @@
+<resources>
+    <!-- 分类入口与管理 -->
+    <string name="category_entry">分类</string>
+    <string name="category_management_title">分类管理</string>
+    <string name="category_loading">正在加载分类…</string>
+    <string name="category_add_top">新增大类</string>
+    <string name="category_add_sub">新增子类</string>
+    <string name="category_top_name_label">大类名称</string>
+    <string name="category_sub_name_label">子类名称</string>
+    <string name="category_name_label">名称</string>
+    <string name="category_name_zh">中文名称</string>
+    <string name="category_name_en">英文名称</string>
+    <string name="category_restore_default">恢复默认</string>
+    <string name="category_no_sub">暂无子类</string>
+    <string name="category_delete_blocked_title">无法删除</string>
+    <string name="category_delete_blocked_message">「%s」下还有子类，请先删除其全部子类。</string>
+
+    <!-- 分类选择 -->
+    <string name="category_field_label">分类</string>
+    <string name="category_tap_to_edit">点击修改</string>
+    <string name="category_selected">已选择</string>
+
+    <!-- 通用操作 -->
+    <string name="action_back">返回</string>
+    <string name="action_confirm">确定</string>
+    <string name="action_cancel">取消</string>
+    <string name="action_delete">删除</string>
+    <string name="action_rename">重命名</string>
+    <string name="action_got_it">知道了</string>
+
+    <!-- 展开收起 -->
+    <string name="category_expand">展开</string>
+    <string name="category_collapse">收起</string>
+</resources>

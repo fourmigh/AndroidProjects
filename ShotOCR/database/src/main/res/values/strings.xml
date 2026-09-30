@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 内置分类名：大类 -->
+    <string name="category_life">基础生活</string>
+    <string name="category_shopping">购物消费</string>
+    <string name="category_transport">交通出行</string>
+    <string name="category_health">健康医疗</string>
+    <string name="category_entertainment">娱乐生活</string>
+    <string name="category_growth">个人成长</string>
+
+    <!-- 内置分类名：子类 -->
+    <string name="category_life_utility">水电煤</string>
+    <string name="category_life_rent">房租/押金</string>
+    <string name="category_life_property">物业费</string>
+    <string name="category_life_telecom">网络通信</string>
+    <string name="category_shopping_online">线上购物</string>
+    <string name="category_shopping_retail">线下零售</string>
+    <string name="category_shopping_grocery">超市/生鲜</string>
+    <string name="category_shopping_fuel">燃油/加油</string>
+    <string name="category_transport_public">公共交通</string>
+    <string name="category_transport_taxi">打车/网约车</string>
+    <string name="category_transport_maintenance">车辆维护</string>
+    <string name="category_transport_parking">停车费</string>
+    <string name="category_health_hospital">医院就诊</string>
+    <string name="category_health_pharmacy">药店</string>
+    <string name="category_health_dental">牙科/眼科</string>
+    <string name="category_health_insurance">保险费用</string>
+    <string name="category_entertainment_dining">外卖/餐饮</string>
+    <string name="category_entertainment_movie">电影/演出</string>
+    <string name="category_entertainment_game">游戏/订阅</string>
+    <string name="category_entertainment_fitness">运动健身</string>
+    <string name="category_growth_education">教育培训</string>
+    <string name="category_growth_book">图书/学习</string>
+    <string name="category_growth_finance">理财投资</string>
+
+    <!-- 内置分类名：兜底 -->
+    <string name="category_uncategorized">未分类</string>
+</resources>

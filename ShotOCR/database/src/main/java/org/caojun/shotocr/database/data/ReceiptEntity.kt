@@ -19,8 +19,13 @@ data class ReceiptEntity(
     val paymentMethod: String,
     val orderNumber: String,
     val itemsJson: String,
+    val categoryId: String = UNCATEGORIZED_ID,
     val createdAt: Long = System.currentTimeMillis()
 ) {
+    companion object {
+        const val UNCATEGORIZED_ID = "uncategorized"
+    }
+
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is ReceiptEntity) return false
@@ -36,6 +41,7 @@ data class ReceiptEntity(
                 paymentMethod == other.paymentMethod &&
                 orderNumber == other.orderNumber &&
                 itemsJson == other.itemsJson &&
+                categoryId == other.categoryId &&
                 createdAt == other.createdAt
     }
 
@@ -52,6 +58,7 @@ data class ReceiptEntity(
         result = 31 * result + paymentMethod.hashCode()
         result = 31 * result + orderNumber.hashCode()
         result = 31 * result + itemsJson.hashCode()
+        result = 31 * result + categoryId.hashCode()
         result = 31 * result + createdAt.hashCode()
         return result
     }

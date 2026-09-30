@@ -138,7 +138,7 @@ Windows 快捷方式（在仓库根目录 `AndroidProjects\` 下执行，自动�
 install.bat WalletLoginDemo
 ```
 
-`install.bat` 会自动探测本机 IPv4，并把后端地址写入 `android\local.properties`：
+`install.bat` 会调用 `android\hooks\pre-build.bat`，自动探测本机 IPv4 并把后端地址写入 `android\local.properties`：
 
 ```properties
 backend.url=http://<本机IP>:3000
@@ -146,11 +146,18 @@ nfc.reader.token=dev-reader-token
 ```
 
 该值在打包时注入 `BuildConfig.BASE_URL` / `BuildConfig.NFC_READER_TOKEN`，源码中不含任何硬编码 IP；
-换 IP 只需重新执行一次 `install.bat`。若后端端口不是 3000：
+换 IP 只需重新执行一次 `install.bat`。
 
-```bat
-install.bat WalletLoginDemo port:8080
+端口与读卡器口令取自 `backend\.env` 的 `PORT` / `NFC_READER_TOKEN`（与 `start-backend.bat` 口径一致，
+缺省 `3000` / `dev-reader-token`），所以**改端口只需改 `.env`**，无需给 `install.bat` 传参：
+
+```properties
+# backend\.env
+PORT=8080
+NFC_READER_TOKEN=dev-reader-token
 ```
+
+再跑一次 `install.bat WalletLoginDemo`，hook 就会把新端口写进 `local.properties`。
 
 或手动：
 

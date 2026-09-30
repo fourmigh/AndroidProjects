@@ -1,6 +1,10 @@
 package org.caojun.walletlogin
 
+import android.content.ActivityNotFoundException
+import android.content.Intent
 import android.os.Bundle
+import android.provider.Settings
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
@@ -48,7 +52,8 @@ class NfcSetupActivity : ComponentActivity() {
                         busy = busyState.value,
                         onUserIdChange = { userIdState.value = it },
                         onBind = { bind(userIdState.value.trim()) },
-                        onUnbind = { unbind() }
+                        onUnbind = { unbind() },
+                        onOpenNfcSettings = { openNfcSettings() }
                     )
                 }
             }
@@ -124,6 +129,14 @@ class NfcSetupActivity : ComponentActivity() {
             }
         }.start()
     }
+
+    private fun openNfcSettings() {
+        try {
+            startActivity(Intent(Settings.ACTION_NFC_SETTINGS))
+        } catch (_: ActivityNotFoundException) {
+            Toast.makeText(this, "无法打开 NFC 设置，请手动进入 设置 → NFC", Toast.LENGTH_SHORT).show()
+        }
+    }
 }
 
 @Composable
@@ -134,7 +147,8 @@ private fun SetupScreen(
     busy: Boolean,
     onUserIdChange: (String) -> Unit,
     onBind: () -> Unit,
-    onUnbind: () -> Unit
+    onUnbind: () -> Unit,
+    onOpenNfcSettings: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -184,5 +198,12 @@ private fun SetupScreen(
                 "部分手机的「卡包/钱包」会占用读卡模式（Reader Mode），导致本机无法被读卡器读取。",
             style = MaterialTheme.typography.bodySmall
         )
+        Spacer(Modifier.height(12.dp))
+        OutlinedButton(
+            onClick = onOpenNfcSettings,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("修改默认 NFC 应用")
+        }
     }
 }

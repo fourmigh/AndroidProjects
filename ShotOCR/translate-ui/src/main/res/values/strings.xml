@@ -1,0 +1,6 @@
+<resources>
+    <!-- 可翻译输入框 -->
+    <string name="translate_ui_translate">翻译</string>
+    <string name="translate_ui_translating">翻译中…</string>
+    <string name="translate_ui_failed">翻译失败：%1$s</string>
+</resources>

@@ -1,0 +1,6 @@
+<resources>
+    <!-- Translatable text field -->
+    <string name="translate_ui_translate">Translate</string>
+    <string name="translate_ui_translating">Translating…</string>
+    <string name="translate_ui_failed">Translation failed: %1$s</string>
+</resources>

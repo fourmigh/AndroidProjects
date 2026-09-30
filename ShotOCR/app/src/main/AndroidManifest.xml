@@ -40,6 +40,12 @@
             android:exported="false"
             android:label="账单记录"
             android:theme="@style/Theme.ShotOCR" />
+
+        <activity
+            android:name=".ClassificationManagementActivity"
+            android:exported="false"
+            android:label="@string/category_management_title"
+            android:theme="@style/Theme.ShotOCR" />
     </application>
 
 </manifest>

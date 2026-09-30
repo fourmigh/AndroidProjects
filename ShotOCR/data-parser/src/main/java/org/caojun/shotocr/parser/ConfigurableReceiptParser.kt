@@ -130,31 +130,13 @@ class ConfigurableReceiptParser(
                 continue
             }
 
-            var bestValue: Double? = null
-            var bestIndex = -1
-            for (offset in -3..3) {
-                if (offset == 0) continue
-                val j = i + offset
-                if (j < 0 || j >= lines.size || j in processedIndices) continue
-                val adjacentLine = lines[j]
-                if (effectiveDiscountKeywords.any { kw -> adjacentLine.contains(kw) }) continue
-                if (datePattern.containsMatchIn(adjacentLine)) continue
-                if (containsYearValue(adjacentLine)) continue
-                val adjMatch = amountPattern.find(adjacentLine)
-                if (adjMatch != null) {
-                    val value = adjMatch.groupValues[1].toDoubleOrNull()
-                    if (value == null || Math.abs(value) <= 0) continue
-                    if (originalAmount != null && Math.abs(value) > originalAmount) continue
-                    if (bestValue == null || Math.abs(value) < Math.abs(bestValue)) {
-                        bestValue = value
-                        bestIndex = j
-                    }
-                }
-            }
-            if (bestValue != null) {
-                totalDiscount += Math.abs(bestValue)
+            val neighbor = selectDiscountNeighbor(
+                lines, i, amountPattern, effectiveDiscountKeywords, datePattern, originalAmount, processedIndices
+            )
+            if (neighbor != null) {
+                totalDiscount += Math.abs(neighbor.second)
                 found = true
-                processedIndices.add(bestIndex)
+                processedIndices.add(neighbor.first)
             }
         }
 

@@ -1,0 +1,34 @@
+<resources>
+    <!-- Category entry & management -->
+    <string name="category_entry">Categories</string>
+    <string name="category_management_title">Category Management</string>
+    <string name="category_loading">Loading categories…</string>
+    <string name="category_add_top">Add Top Category</string>
+    <string name="category_add_sub">Add Subcategory</string>
+    <string name="category_top_name_label">Top category name</string>
+    <string name="category_sub_name_label">Subcategory name</string>
+    <string name="category_name_label">Name</string>
+    <string name="category_name_zh">Chinese name</string>
+    <string name="category_name_en">English name</string>
+    <string name="category_restore_default">Restore default</string>
+    <string name="category_no_sub">No subcategories</string>
+    <string name="category_delete_blocked_title">Cannot Delete</string>
+    <string name="category_delete_blocked_message">"%s" still has subcategories. Delete them first.</string>
+
+    <!-- Category picker -->
+    <string name="category_field_label">Category</string>
+    <string name="category_tap_to_edit">Tap to change</string>
+    <string name="category_selected">Selected</string>
+
+    <!-- Common actions -->
+    <string name="action_back">Back</string>
+    <string name="action_confirm">OK</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_rename">Rename</string>
+    <string name="action_got_it">Got it</string>
+
+    <!-- Expand / collapse -->
+    <string name="category_expand">Expand</string>
+    <string name="category_collapse">Collapse</string>
+</resources>
