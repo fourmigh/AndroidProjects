@@ -5,7 +5,7 @@
         <activity
             android:name=".ui.OcrTestActivity"
             android:exported="true"
-            android:label="OCR Test"
+            android:label="@string/ocr_test_title"
             android:theme="@android:style/Theme.Material.Light.NoActionBar" />
     </application>
 

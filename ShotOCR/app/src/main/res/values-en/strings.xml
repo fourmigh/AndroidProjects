@@ -24,6 +24,8 @@
     <string name="confirm_channel_desc">Automatically show confirmation screen after screenshot recognition</string>
     <string name="screenshot_recognized">Recognized, please confirm</string>
     <string name="duplicate_receipt_notification">This receipt has been recognized. Tap to delete the screenshot.</string>
+    <string name="error_load_screenshot">Failed to load screenshot, the item may still be pending</string>
+    <string name="error_occurred">Error: %1$s</string>
     <string name="view_records">View Records</string>
     <string name="parser_config">Parser Config</string>
     <string name="usage_access_permission_desc">Enable "Usage Access" to automatically detect the source app of a screenshot (e.g. UnionPay, WeChat, Alipay). When disabled, the app is inferred from the text content.</string>

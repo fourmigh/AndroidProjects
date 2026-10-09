@@ -48,4 +48,6 @@
     <string name="summary_count_amount">%1$d 笔 · 实付 ¥%2$s</string>
     <string name="summary_order_no_discount">订单 ¥%1$s</string>
     <string name="summary_order_discount">订单 ¥%1$s · 优惠 ¥%2$s（优惠率 %3$s%%）</string>
+    <string name="summary_total">总计</string>
+    <string name="accounting_test_title">记账测试</string>
 </resources>

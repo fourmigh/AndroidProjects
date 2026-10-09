@@ -152,7 +152,7 @@ class ScreenshotService : LifecycleService() {
             if (bitmap == null) {
                 Log.e(TAG, "processScreenshot: Failed to load bitmap after $maxRetries attempts for $uriString")
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(this@ScreenshotService, "Failed to load screenshot (item may still be pending)", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this@ScreenshotService, getString(R.string.error_load_screenshot), Toast.LENGTH_LONG).show()
                 }
                 return
             }
@@ -238,7 +238,7 @@ class ScreenshotService : LifecycleService() {
         } catch (e: Exception) {
             Log.e(TAG, "processScreenshot: Error processing screenshot", e)
             withContext(Dispatchers.Main) {
-                Toast.makeText(this@ScreenshotService, "Error: ${e.message}", Toast.LENGTH_LONG).show()
+                Toast.makeText(this@ScreenshotService, getString(R.string.error_occurred, e.message ?: e.javaClass.simpleName), Toast.LENGTH_LONG).show()
             }
         }
     }

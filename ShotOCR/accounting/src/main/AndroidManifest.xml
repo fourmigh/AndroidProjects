@@ -5,12 +5,12 @@
         <activity
             android:name=".ui.ConfirmActivity"
             android:exported="true"
-            android:label="Confirm Receipt"
+            android:label="@string/confirm_title"
             android:theme="@android:style/Theme.Material.Light.NoActionBar" />
         <activity
             android:name=".ui.AccountingTestActivity"
             android:exported="true"
-            android:label="Accounting Test"
+            android:label="@string/accounting_test_title"
             android:theme="@android:style/Theme.Material.Light.NoActionBar" />
         <activity
             android:name=".ui.SettingsActivity"

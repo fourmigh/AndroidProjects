@@ -37,14 +37,14 @@
         <activity
             android:name="org.caojun.shotocr.accounting.ui.ConfirmActivity"
             android:exported="false"
-            android:label="确认记账"
+            android:label="@string/confirm_title"
             android:theme="@style/Theme.ShotOCR"
             tools:replace="android:exported,android:label,android:theme" />
 
         <activity
             android:name="org.caojun.shotocr.accounting.ui.BillListActivity"
             android:exported="false"
-            android:label="账单记录"
+            android:label="@string/accounting_records"
             android:theme="@style/Theme.ShotOCR" />
 
         <activity

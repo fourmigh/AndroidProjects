@@ -30,6 +30,7 @@ import org.caojun.shotocr.accounting.ReceiptTotals
 import org.caojun.shotocr.accounting.WeekSummary
 import org.caojun.shotocr.accounting.buildGroupedData
 import org.caojun.shotocr.accounting.formatAmount
+import org.caojun.shotocr.accounting.totalsOf
 import org.caojun.shotocr.accounting.R
 import java.math.BigDecimal
 import java.math.RoundingMode
@@ -70,6 +71,7 @@ fun BillListScreen(
     val groupedData = remember(records, weekStart) {
         buildGroupedData(records, weekStart)
     }
+    val totalTotals = remember(records) { totalsOf(records) }
 
     val expandedMonths = remember { mutableStateMapOf<String, Boolean>() }
     val expandedWeeks = remember { mutableStateMapOf<String, Boolean>() }
@@ -108,58 +110,70 @@ fun BillListScreen(
                 )
             }
         } else {
-            LazyColumn(
+            Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                    .padding(16.dp)
             ) {
-                groupedData.months.forEach { month ->
-                    item(key = "month-${month.key}") {
-                        MonthSummaryRow(
-                            month = month,
-                            expanded = expandedMonths[month.key] == true,
-                            onClick = { expandedMonths[month.key] = expandedMonths[month.key] != true }
-                        )
-                    }
-                    if (expandedMonths[month.key] == true) {
-                        month.weeks.forEach { week ->
-                            item(key = "week-${week.key}") {
-                                WeekSummaryRow(
-                                    week = week,
-                                    expanded = expandedWeeks[week.key] == true,
-                                    onClick = { expandedWeeks[week.key] = expandedWeeks[week.key] != true }
-                                )
-                            }
-                            if (expandedWeeks[week.key] == true) {
-                                items(week.receipts, key = { "receipt-${month.key}-${it.id}" }) { receipt ->
-                                    BillCard(
-                                        receipt = receipt,
-                                        index = records.indexOfFirst { it.id == receipt.id }
+                SummaryCard(
+                    title = stringResource(R.string.summary_total),
+                    subtitle = "",
+                    totals = totalTotals,
+                    expanded = false,
+                    expandable = false
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                LazyColumn(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    groupedData.months.forEach { month ->
+                        item(key = "month-${month.key}") {
+                            MonthSummaryRow(
+                                month = month,
+                                expanded = expandedMonths[month.key] == true,
+                                onClick = { expandedMonths[month.key] = expandedMonths[month.key] != true }
+                            )
+                        }
+                        if (expandedMonths[month.key] == true) {
+                            month.weeks.forEach { week ->
+                                item(key = "week-${week.key}") {
+                                    WeekSummaryRow(
+                                        week = week,
+                                        expanded = expandedWeeks[week.key] == true,
+                                        onClick = { expandedWeeks[week.key] = expandedWeeks[week.key] != true }
                                     )
+                                }
+                                if (expandedWeeks[week.key] == true) {
+                                    items(week.receipts, key = { "receipt-${month.key}-${it.id}" }) { receipt ->
+                                        BillCard(
+                                            receipt = receipt,
+                                            index = records.indexOfFirst { it.id == receipt.id }
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
-                }
 
-                if (groupedData.unclassified.isNotEmpty()) {
-                    item(key = "unclassified-header") {
-                        SummaryCard(
-                            title = stringResource(R.string.unclassified_records),
-                            subtitle = "",
-                            totals = groupedData.unclassifiedTotals,
-                            expanded = unclassifiedExpanded.value,
-                            onClick = { unclassifiedExpanded.value = !unclassifiedExpanded.value }
-                        )
-                    }
-                    if (unclassifiedExpanded.value) {
-                        items(groupedData.unclassified, key = { "unclassified-${it.id}" }) { receipt ->
-                            BillCard(
-                                receipt = receipt,
-                                index = records.indexOfFirst { it.id == receipt.id }
+                    if (groupedData.unclassified.isNotEmpty()) {
+                        item(key = "unclassified-header") {
+                            SummaryCard(
+                                title = stringResource(R.string.unclassified_records),
+                                subtitle = "",
+                                totals = groupedData.unclassifiedTotals,
+                                expanded = unclassifiedExpanded.value,
+                                onClick = { unclassifiedExpanded.value = !unclassifiedExpanded.value }
                             )
+                        }
+                        if (unclassifiedExpanded.value) {
+                            items(groupedData.unclassified, key = { "unclassified-${it.id}" }) { receipt ->
+                                BillCard(
+                                    receipt = receipt,
+                                    index = records.indexOfFirst { it.id == receipt.id }
+                                )
+                            }
                         }
                     }
                 }
@@ -204,12 +218,18 @@ private fun SummaryCard(
     subtitle: String,
     totals: ReceiptTotals,
     expanded: Boolean,
-    onClick: () -> Unit
+    expandable: Boolean = true,
+    onClick: () -> Unit = {}
 ) {
-    Card(
-        modifier = Modifier
+    val cardModifier = if (expandable) {
+        Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
+            .clickable(onClick = onClick)
+    } else {
+        Modifier.fillMaxWidth()
+    }
+    Card(
+        modifier = cardModifier,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant
         )
@@ -225,11 +245,13 @@ private fun SummaryCard(
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold
                 )
-                Text(
-                    text = stringResource(if (expanded) R.string.collapse else R.string.expand),
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.primary
-                )
+                if (expandable) {
+                    Text(
+                        text = stringResource(if (expanded) R.string.collapse else R.string.expand),
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
             if (subtitle.isNotEmpty()) {
                 Text(

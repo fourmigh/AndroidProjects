@@ -43,4 +43,6 @@
     <string name="summary_count_amount">%1$d item(s) · Paid ¥%2$s</string>
     <string name="summary_order_no_discount">Order ¥%1$s</string>
     <string name="summary_order_discount">Order ¥%1$s · Discount ¥%2$s (%3$s%% rate)</string>
+    <string name="summary_total">Total</string>
+    <string name="accounting_test_title">Accounting Test</string>
 </resources>
