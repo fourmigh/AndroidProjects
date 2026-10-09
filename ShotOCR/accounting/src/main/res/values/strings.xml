@@ -35,6 +35,8 @@
     <string name="collapse">▲ 收起</string>
     <string name="copy_raw_text">OCR 原文已复制到剪贴板</string>
     <string name="payment_method_display">付款方式: %s</string>
+    <string name="source_app">来源APP</string>
+    <string name="source_app_display">来源: %s</string>
     <string name="order_number_display">订单号: %s</string>
     <string name="confirm_delete_title">确认删除</string>
     <string name="confirm_delete_message">确定要删除这条账单记录吗？</string>

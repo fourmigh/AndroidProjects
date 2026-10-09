@@ -24,7 +24,9 @@ import org.caojun.shotocr.parser.ReceiptData
 import org.caojun.shotocr.parser.ReceiptParseConfig
 import org.caojun.shotocr.parser.ReceiptParser
 import org.caojun.shotocr.database.data.AppDatabase
+import org.caojun.shotocr.database.data.ProcessedReceiptEntity
 import org.caojun.shotocr.accounting.ui.ConfirmActivity
+import org.caojun.shotocr.util.ForegroundAppResolver
 
 class ScreenshotService : LifecycleService() {
 
@@ -34,6 +36,7 @@ class ScreenshotService : LifecycleService() {
         private const val CHANNEL_ID_HIGH = "screenshot_confirm_channel"
         private const val NOTIFICATION_ID = 1001
         private const val NOTIFICATION_ID_CONFIRM = 1002
+        private const val NOTIFICATION_ID_DUPLICATE = 1003
     }
 
     private var monitor: ScreenshotMonitor? = null
@@ -79,7 +82,7 @@ class ScreenshotService : LifecycleService() {
             Log.d(TAG, "onStartCommand - Starting to collect screenshots flow")
             monitor?.screenshots?.collect { screenshot ->
                 Log.d(TAG, "Screenshot event received: ${screenshot.displayName}, uri=${screenshot.uri}")
-                processScreenshot(screenshot.uri.toString())
+                processScreenshot(screenshot.uri.toString(), screenshot.timestamp)
             }
         }
         
@@ -100,10 +103,20 @@ class ScreenshotService : LifecycleService() {
         return null
     }
 
-    private suspend fun processScreenshot(uriString: String) {
+    private suspend fun processScreenshot(uriString: String, timestamp: Long) {
         try {
             Log.d(TAG, "processScreenshot: Starting processing for $uriString")
             val uri = android.net.Uri.parse(uriString)
+
+            val foregroundPackage = withContext(Dispatchers.IO) {
+                ForegroundAppResolver.getForegroundPackage(applicationContext, timestamp)
+            }
+            val foregroundLabel = foregroundPackage?.let { pkg ->
+                withContext(Dispatchers.IO) {
+                    ForegroundAppResolver.getAppLabel(applicationContext, pkg)
+                }
+            }
+            Log.d(TAG, "processScreenshot: foregroundPackage=$foregroundPackage, foregroundLabel=$foregroundLabel")
 
             Log.d(TAG, "processScreenshot: Loading bitmap from URI (with retry)")
             var bitmap: android.graphics.Bitmap? = null
@@ -162,7 +175,25 @@ class ScreenshotService : LifecycleService() {
             Log.d(TAG, "processScreenshot: OCR text: ${fullText.take(200)}...")
 
             val receiptData = parser.parse(fullText)
-            Log.d(TAG, "processScreenshot: Parsed receipt: amount=${receiptData.amount}, discount=${receiptData.discount}, items=${receiptData.items.size}")
+            val sourceApp = foregroundLabel ?: receiptData.sourceApp
+            Log.d(TAG, "processScreenshot: Parsed receipt: amount=${receiptData.amount}, discount=${receiptData.discount}, items=${receiptData.items.size}, sourceApp=$sourceApp")
+
+            val orderNumber = receiptData.orderNumber
+            var isDuplicate = false
+            if (!orderNumber.isNullOrEmpty()) {
+                val appKey = sourceApp ?: ""
+                val processedDao = AppDatabase.getInstance(applicationContext).processedReceiptDao()
+                isDuplicate = withContext(Dispatchers.IO) { processedDao.exists(orderNumber, appKey) }
+                withContext(Dispatchers.IO) {
+                    processedDao.insert(ProcessedReceiptEntity(orderNumber, appKey))
+                }
+            }
+            Log.d(TAG, "processScreenshot: orderNumber=$orderNumber, isDuplicate=$isDuplicate")
+
+            if (isDuplicate) {
+                notifyDuplicateReceipt(uriString)
+                return
+            }
 
             val intent = Intent(this, ConfirmActivity::class.java).apply {
                 putExtra("screenshot_uri", uriString)
@@ -174,6 +205,7 @@ class ScreenshotService : LifecycleService() {
                 putExtra("payment_time", receiptData.paymentTime ?: "")
                 putExtra("payment_method", receiptData.paymentMethod ?: "")
                 putExtra("order_number", receiptData.orderNumber ?: "")
+                putExtra("source_app", sourceApp ?: "")
 
                 val names = ArrayList(receiptData.items.map { it.name })
                 val prices = ArrayList(receiptData.items.map { it.price?.toString() ?: "" })
@@ -193,7 +225,7 @@ class ScreenshotService : LifecycleService() {
             
             val confirmNotification = NotificationCompat.Builder(this, CHANNEL_ID_HIGH)
                 .setContentTitle(getString(R.string.notification_title))
-                .setContentText(getString(R.string.screenshot_detected))
+                .setContentText(getString(R.string.screenshot_recognized))
                 .setSmallIcon(android.R.drawable.ic_menu_camera)
                 .setFullScreenIntent(pendingIntent, true)
                 .setAutoCancel(true)
@@ -209,6 +241,29 @@ class ScreenshotService : LifecycleService() {
                 Toast.makeText(this@ScreenshotService, "Error: ${e.message}", Toast.LENGTH_LONG).show()
             }
         }
+    }
+
+    private fun notifyDuplicateReceipt(uriString: String) {
+        val deleteIntent = Intent(this, ConfirmActivity::class.java).apply {
+            putExtra("delete_screenshot_uri", uriString)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        }
+        val deletePendingIntent = PendingIntent.getActivity(
+            this,
+            NOTIFICATION_ID_DUPLICATE,
+            deleteIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val duplicateNotification = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle(getString(R.string.notification_title))
+            .setContentText(getString(R.string.duplicate_receipt_notification))
+            .setSmallIcon(android.R.drawable.ic_menu_camera)
+            .setContentIntent(deletePendingIntent)
+            .setAutoCancel(true)
+            .build()
+        getSystemService(NotificationManager::class.java)
+            .notify(NOTIFICATION_ID_DUPLICATE, duplicateNotification)
+        Log.d(TAG, "notifyDuplicateReceipt: Duplicate notification sent for $uriString")
     }
 
     private fun createNotificationChannel() {

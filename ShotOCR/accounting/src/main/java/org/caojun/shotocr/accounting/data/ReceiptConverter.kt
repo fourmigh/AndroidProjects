@@ -22,6 +22,7 @@ fun ReceiptEntity.toEditableReceipt(): EditableReceipt {
         paymentMethod = paymentMethod,
         orderNumber = orderNumber,
         items = items,
+        sourceApp = sourceApp,
         categoryId = categoryId
     )
 }
@@ -40,6 +41,7 @@ fun EditableReceipt.toEntity(): ReceiptEntity {
         paymentMethod = paymentMethod,
         orderNumber = orderNumber,
         itemsJson = itemsToJson(items),
+        sourceApp = sourceApp,
         categoryId = categoryId
     )
 }

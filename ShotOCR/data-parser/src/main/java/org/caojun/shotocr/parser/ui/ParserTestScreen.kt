@@ -115,6 +115,7 @@ fun ParserTestScreen() {
                         ResultRow(stringResource(R.string.amount_label), data.amount?.toString() ?: "N/A")
                         ResultRow(stringResource(R.string.discount_label), data.discount?.toString() ?: "N/A")
                         ResultRow(stringResource(R.string.original_label), data.originalAmount?.toString() ?: "N/A")
+                        ResultRow(stringResource(R.string.source_app_label), data.sourceApp ?: "N/A")
                         ResultRow(stringResource(R.string.items_label), data.items.size.toString())
 
                         if (data.items.isNotEmpty()) {

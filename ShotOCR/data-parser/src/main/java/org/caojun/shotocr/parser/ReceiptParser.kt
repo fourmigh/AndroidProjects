@@ -2,6 +2,12 @@ package org.caojun.shotocr.parser
 
 open class ReceiptParser : DataParser<ReceiptData> {
 
+    private val sourceAppSignatures = listOf(
+        "云闪付" to listOf("云闪付"),
+        "微信" to listOf("微信支付", "微信零钱", "零钱通", "微信账单"),
+        "支付宝" to listOf("支付宝", "花呗", "余额宝")
+    )
+
     override fun parse(text: String): ReceiptData {
         val lines = text.lines().map { it.trim() }.filter { it.isNotEmpty() }
 
@@ -23,7 +29,8 @@ open class ReceiptParser : DataParser<ReceiptData> {
             paymentMethod = paymentMethod,
             orderNumber = orderNumber,
             items = items,
-            rawText = text
+            rawText = text,
+            sourceApp = extractSourceApp(lines)
         )
     }
 
@@ -66,7 +73,7 @@ open class ReceiptParser : DataParser<ReceiptData> {
 
     protected open fun extractAmount(lines: List<String>, originalAmount: Double?): Double? {
         for (line in lines) {
-            val trimmed = line.trim()
+            val trimmed = normalizeOcrAmountLine(line.trim())
             if (!trimmed.startsWith("-")) continue
             val cleaned = trimmed.replace("¥", "").replace("￥", "")
             if (cleaned.matches(Regex("""^-?\d+\.?\d*$"""))) {
@@ -102,6 +109,16 @@ open class ReceiptParser : DataParser<ReceiptData> {
         return null
     }
 
+    /**
+     * 修正 OCR 常见错误：金额中的小数点被识别为连字符或间隔符，如 "-9-77" -> "-9.77"。
+     * 仅当形如 -数字 + 1~2 位分隔符数字且其后不再紧跟数字时才转换，避免误伤日期/大数。
+     */
+    protected open fun normalizeOcrAmountLine(line: String): String {
+        return line.replace(Regex("""^(-\d+)[-·,](\d{1,2})([^\d].*)?$""")) { match ->
+            "${match.groupValues[1]}.${match.groupValues[2]}${match.groupValues[3]}"
+        }
+    }
+
     protected open fun inferDecimalPoint(rawAmount: Double, originalAmount: Double): Double {
         val absAmount = Math.abs(rawAmount)
         if (absAmount > originalAmount * 10 && absAmount < originalAmount * 1000) {
@@ -120,7 +137,6 @@ open class ReceiptParser : DataParser<ReceiptData> {
     protected open fun extractDiscount(lines: List<String>, originalAmount: Double?): Double? {
         val discountKeywords = listOf("优惠", "尤惠", "减免", "折扣", "立减", "满减", "抵扣", "福利", "财神", "红包", "补贴", "返现")
         val excludeKeywords = listOf("领", "就可用", "去查看", "推荐", "服务")
-        val amountPattern = Regex("""(-?\d+\.?\d+)""")
         val datePattern = Regex("""\d{4}[-/]\d{1,2}[-/]\d{1,2}""")
         val processedIndices = mutableSetOf<Int>()
         var totalDiscount = 0.0
@@ -134,19 +150,16 @@ open class ReceiptParser : DataParser<ReceiptData> {
             val hasKeyword = discountKeywords.any { keyword -> line.contains(keyword) }
             if (!hasKeyword) continue
 
-            val match = amountPattern.find(line)
-            if (match != null) {
-                val value = match.groupValues[1].toDoubleOrNull()
-                if (value != null && Math.abs(value) > 0) {
-                    totalDiscount += Math.abs(value)
-                    found = true
-                    processedIndices.add(i)
-                }
+            val value = findDiscountAmount(line)
+            if (value != null && Math.abs(value) > 0) {
+                totalDiscount += Math.abs(value)
+                found = true
+                processedIndices.add(i)
                 continue
             }
 
             val neighbor = selectDiscountNeighbor(
-                lines, i, amountPattern, discountKeywords, datePattern, originalAmount, processedIndices
+                lines, i, discountKeywords, datePattern, originalAmount, processedIndices
             )
             if (neighbor != null) {
                 totalDiscount += Math.abs(neighbor.second)
@@ -161,7 +174,6 @@ open class ReceiptParser : DataParser<ReceiptData> {
     protected open fun selectDiscountNeighbor(
         lines: List<String>,
         index: Int,
-        amountPattern: Regex,
         discountKeywords: List<String>,
         datePattern: Regex,
         originalAmount: Double?,
@@ -178,7 +190,7 @@ open class ReceiptParser : DataParser<ReceiptData> {
             if (j < 0 || j >= lines.size || j in processedIndices) continue
             val adjacentLine = lines[j]
             if (!discountKeywords.any { adjacentLine.contains(it) }) continue
-            val value = discountAdjacentValue(adjacentLine, amountPattern, datePattern, originalAmount) ?: continue
+            val value = discountAdjacentValue(adjacentLine, datePattern, originalAmount) ?: continue
             return j to value
         }
 
@@ -188,7 +200,7 @@ open class ReceiptParser : DataParser<ReceiptData> {
             if (j < 0 || j >= lines.size || j in processedIndices) continue
             val adjacentLine = lines[j]
             if (discountKeywords.any { adjacentLine.contains(it) }) continue
-            val value = discountAdjacentValue(adjacentLine, amountPattern, datePattern, originalAmount) ?: continue
+            val value = discountAdjacentValue(adjacentLine, datePattern, originalAmount) ?: continue
             if (best == null || Math.abs(value) < Math.abs(best.second)) {
                 best = j to value
             }
@@ -198,21 +210,40 @@ open class ReceiptParser : DataParser<ReceiptData> {
 
     protected open fun discountAdjacentValue(
         line: String,
-        amountPattern: Regex,
         datePattern: Regex,
         originalAmount: Double?
     ): Double? {
         if (datePattern.containsMatchIn(line)) return null
         if (containsYearValue(line)) return null
-        val match = amountPattern.find(line) ?: return null
-        val value = match.groupValues[1].toDoubleOrNull() ?: return null
+        val value = findDiscountAmount(line) ?: return null
         if (Math.abs(value) <= 0) return null
-        if (originalAmount != null && Math.abs(value) > originalAmount) return null
+        if (originalAmount != null && Math.abs(value) >= originalAmount) return null
         return value
+    }
+
+    /**
+     * 提取优惠相关行中的金额：优先匹配带小数点的金额（如 "-0.50"），
+     * 避免 "支付18VIP到店-0.50" 被左起优先匹配成 "18"。
+     */
+    protected open fun findDiscountAmount(line: String): Double? {
+        val normalized = normalizeOcrAmountLine(line)
+        val decimalMatch = Regex("""(-?\d+\.\d+)""").find(normalized)
+        val match = decimalMatch ?: Regex("""(-?\d+)""").find(normalized)
+        return match?.groupValues?.get(1)?.toDoubleOrNull()
     }
 
     protected open fun containsYearValue(line: String): Boolean =
         Regex("""\d{4}\s*年""").containsMatchIn(line) || Regex("""\d{4}\s*[-/]\s*\d{4}""").containsMatchIn(line)
+
+    protected open fun extractSourceApp(lines: List<String>): String? {
+        val joined = lines.joinToString("\n")
+        for ((appName, signatures) in sourceAppSignatures) {
+            if (signatures.any { signature -> joined.contains(signature) }) {
+                return appName
+            }
+        }
+        return null
+    }
 
     protected open fun extractStoreName(lines: List<String>): String? {
         val excludeKeywords = listOf("账单", "详情", "支付", "订单", "交易", "时间", "方式", "说明", "奖励", "收款", "推荐", "服务", "分类", "管理", "贴纸", "解锁")

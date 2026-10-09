@@ -45,6 +45,13 @@ class ConfirmActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        val deleteUri = intent.getStringExtra("delete_screenshot_uri")
+        if (!deleteUri.isNullOrEmpty()) {
+            deleteScreenshot(Uri.parse(deleteUri))
+            return
+        }
+
         CategoryRepository.init(this)
 
         val receiptId = intent.getLongExtra("receipt_id", -1)
@@ -57,6 +64,7 @@ class ConfirmActivity : ComponentActivity() {
         val paymentTime = intent.getStringExtra("payment_time") ?: ""
         val paymentMethod = intent.getStringExtra("payment_method") ?: ""
         val orderNumber = intent.getStringExtra("order_number") ?: ""
+        val sourceApp = intent.getStringExtra("source_app") ?: ""
 
         val names = intent.getStringArrayListExtra("item_names") ?: arrayListOf()
         val prices = intent.getStringArrayListExtra("item_prices") ?: arrayListOf()
@@ -67,7 +75,7 @@ class ConfirmActivity : ComponentActivity() {
         } else {
             loadNewReceipt(
                 uriString, rawText, amount, discount, originalAmount,
-                storeName, paymentTime, paymentMethod, orderNumber,
+                storeName, paymentTime, paymentMethod, orderNumber, sourceApp,
                 names, prices, quantities
             )
         }
@@ -103,6 +111,7 @@ class ConfirmActivity : ComponentActivity() {
         paymentTime: String,
         paymentMethod: String,
         orderNumber: String,
+        sourceApp: String,
         names: ArrayList<String>,
         prices: ArrayList<String>,
         quantities: ArrayList<String>
@@ -134,7 +143,8 @@ class ConfirmActivity : ComponentActivity() {
                 paymentTime = paymentTime,
                 paymentMethod = paymentMethod,
                 orderNumber = orderNumber,
-                items = items
+                items = items,
+                sourceApp = sourceApp
             )
 
             setContent {

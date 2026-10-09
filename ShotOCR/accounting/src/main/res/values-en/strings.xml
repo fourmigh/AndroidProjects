@@ -26,6 +26,8 @@
     <string name="store_name_display">Store: %s</string>
     <string name="payment_time_display">Time: %s</string>
     <string name="payment_method_display">Method: %s</string>
+    <string name="source_app">Source App</string>
+    <string name="source_app_display">Source: %s</string>
     <string name="order_number_display">Order #: %s</string>
     <string name="items_count">Items: %d</string>
     <string name="expand">▼ Expand</string>

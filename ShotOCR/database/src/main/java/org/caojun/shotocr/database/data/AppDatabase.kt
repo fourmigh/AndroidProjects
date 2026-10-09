@@ -13,13 +13,14 @@ import org.caojun.shotocr.database.category.DefaultCategories
 import org.caojun.shotocr.parser.ReceiptParseConfig
 
 @Database(
-    entities = [ReceiptEntity::class, ParserConfigEntity::class, CategoryEntity::class],
-    version = 8
+    entities = [ReceiptEntity::class, ParserConfigEntity::class, CategoryEntity::class, ProcessedReceiptEntity::class],
+    version = 10
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun receiptDao(): ReceiptDao
     abstract fun parserConfigDao(): ParserConfigDao
     abstract fun categoryDao(): CategoryDao
+    abstract fun processedReceiptDao(): ProcessedReceiptDao
 
     companion object {
         @Volatile
@@ -107,6 +108,29 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE receipts ADD COLUMN sourceApp TEXT NOT NULL DEFAULT ''"
+                )
+            }
+        }
+
+        private val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS processed_receipts (
+                        orderNumber TEXT NOT NULL,
+                        sourceApp TEXT NOT NULL,
+                        createdAt INTEGER NOT NULL DEFAULT 0,
+                        PRIMARY KEY(orderNumber, sourceApp)
+                    )
+                """.trimIndent())
+            }
+        }
+
+        private const val PROCESSED_RECEIPT_RETENTION_MS = 90L * 24 * 60 * 60 * 1000
+
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 Room.databaseBuilder(
@@ -121,7 +145,9 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_4_5,
                         MIGRATION_5_6,
                         MIGRATION_6_7,
-                        MIGRATION_7_8
+                        MIGRATION_7_8,
+                        MIGRATION_8_9,
+                        MIGRATION_9_10
                     )
                     .addCallback(object : Callback() {
                         override fun onCreate(db: SupportSQLiteDatabase) {
@@ -147,6 +173,8 @@ abstract class AppDatabase : RoomDatabase() {
                                 if (categoryDao.count() == 0) {
                                     categoryDao.insertAll(DefaultCategories.toEntities())
                                 }
+                                val cutoff = System.currentTimeMillis() - PROCESSED_RECEIPT_RETENTION_MS
+                                getInstance(appContext).processedReceiptDao().deleteOlderThan(cutoff)
                             }
                         }
                     })

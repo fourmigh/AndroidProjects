@@ -9,7 +9,8 @@ data class ReceiptData(
     val paymentMethod: String?,
     val orderNumber: String?,
     val items: List<ReceiptItem>,
-    val rawText: String
+    val rawText: String,
+    val sourceApp: String? = null
 )
 
 data class ReceiptItem(

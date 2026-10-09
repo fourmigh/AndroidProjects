@@ -24,6 +24,7 @@ data class EditableReceipt(
     val paymentMethod: String = "",
     val orderNumber: String = "",
     val items: List<EditableReceiptItem> = emptyList(),
+    val sourceApp: String = "",
     val categoryId: String = DEFAULT_CATEGORY_ID
 ) {
     override fun equals(other: Any?): Boolean {
@@ -41,6 +42,7 @@ data class EditableReceipt(
                 paymentMethod == other.paymentMethod &&
                 orderNumber == other.orderNumber &&
                 items == other.items &&
+                sourceApp == other.sourceApp &&
                 categoryId == other.categoryId
     }
 
@@ -57,6 +59,7 @@ data class EditableReceipt(
         result = 31 * result + paymentMethod.hashCode()
         result = 31 * result + orderNumber.hashCode()
         result = 31 * result + items.hashCode()
+        result = 31 * result + sourceApp.hashCode()
         result = 31 * result + categoryId.hashCode()
         return result
     }
@@ -82,7 +85,8 @@ data class EditableReceipt(
                         quantity = item.quantity?.toString() ?: "",
                         subtotal = item.subtotal?.toString() ?: ""
                     )
-                }
+                },
+                sourceApp = receiptData.sourceApp ?: ""
             )
         }
 

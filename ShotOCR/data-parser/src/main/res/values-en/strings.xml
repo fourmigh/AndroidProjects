@@ -9,6 +9,7 @@
     <string name="discount_label">Discount</string>
     <string name="original_label">Original</string>
     <string name="items_label">Items</string>
+    <string name="source_app_label">Source App</string>
     <string name="items_detail_label">Items Detail:</string>
     <string name="parser_config_title">Parser Config</string>
     <string name="add_config">New Config</string>

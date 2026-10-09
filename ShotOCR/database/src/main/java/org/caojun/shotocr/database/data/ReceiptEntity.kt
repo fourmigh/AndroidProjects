@@ -19,6 +19,7 @@ data class ReceiptEntity(
     val paymentMethod: String,
     val orderNumber: String,
     val itemsJson: String,
+    val sourceApp: String = "",
     val categoryId: String = UNCATEGORIZED_ID,
     val createdAt: Long = System.currentTimeMillis()
 ) {
@@ -41,6 +42,7 @@ data class ReceiptEntity(
                 paymentMethod == other.paymentMethod &&
                 orderNumber == other.orderNumber &&
                 itemsJson == other.itemsJson &&
+                sourceApp == other.sourceApp &&
                 categoryId == other.categoryId &&
                 createdAt == other.createdAt
     }
@@ -58,6 +60,7 @@ data class ReceiptEntity(
         result = 31 * result + paymentMethod.hashCode()
         result = 31 * result + orderNumber.hashCode()
         result = 31 * result + itemsJson.hashCode()
+        result = 31 * result + sourceApp.hashCode()
         result = 31 * result + categoryId.hashCode()
         result = 31 * result + createdAt.hashCode()
         return result

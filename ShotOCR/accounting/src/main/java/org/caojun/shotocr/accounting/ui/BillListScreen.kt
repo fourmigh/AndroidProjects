@@ -369,6 +369,12 @@ fun BillCard(receipt: EditableReceipt, index: Int) {
                         fontSize = 14.sp
                     )
                 }
+                if (receipt.sourceApp.isNotEmpty()) {
+                    Text(
+                        text = stringResource(R.string.source_app_display, receipt.sourceApp),
+                        fontSize = 14.sp
+                    )
+                }
                 if (receipt.orderNumber.isNotEmpty()) {
                     Text(
                         text = stringResource(R.string.order_number_display, receipt.orderNumber),

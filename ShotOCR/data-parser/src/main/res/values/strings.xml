@@ -9,6 +9,7 @@
     <string name="discount_label">优惠</string>
     <string name="original_label">原价</string>
     <string name="items_label">商品</string>
+    <string name="source_app_label">来源APP</string>
     <string name="items_detail_label">商品明细:</string>
     <string name="parser_config_title">解析器配置</string>
     <string name="add_config">新建配置</string>

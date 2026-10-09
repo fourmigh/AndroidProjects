@@ -32,6 +32,7 @@ import org.caojun.shotocr.accounting.ui.BillListActivity
 import org.caojun.shotocr.classification.repository.CategoryRepository
 import org.caojun.shotocr.parser.ui.ParserConfigActivity
 import org.caojun.shotocr.ui.theme.ShotOCRTheme
+import org.caojun.shotocr.util.ForegroundAppResolver
 
 class MainActivity : ComponentActivity() {
 
@@ -61,7 +62,17 @@ fun MainScreen() {
         mutableStateOf(checkNotificationPermission(context))
     }
     var hasOverlayPermission by remember { mutableStateOf(checkOverlayPermission(context)) }
+    var hasUsageAccess by remember {
+        mutableStateOf(ForegroundAppResolver.isUsageAccessGranted(context))
+    }
     var serviceRunning by remember { mutableStateOf(isServiceRunning(context)) }
+
+    val usageAccessLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { _ ->
+        hasUsageAccess = ForegroundAppResolver.isUsageAccessGranted(context)
+        Log.d("ShotOCR/MainActivity", "Usage access result: granted=$hasUsageAccess")
+    }
 
     val overlayPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -240,6 +251,32 @@ fun MainScreen() {
                             ) {
                                 Text(stringResource(R.string.grant_overlay_permission))
                             }
+                        }
+                    }
+                }
+            }
+
+            if (!hasUsageAccess) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            text = stringResource(R.string.usage_access_permission_desc),
+                            fontSize = 14.sp,
+                            modifier = Modifier.padding(bottom = 12.dp)
+                        )
+                        Button(
+                            onClick = {
+                                usageAccessLauncher.launch(
+                                    Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
+                                )
+                            }
+                        ) {
+                            Text(stringResource(R.string.grant_usage_access_permission))
                         }
                     }
                 }

@@ -46,6 +46,7 @@ fun ConfirmScreen(
     var discount by remember { mutableStateOf(receipt.discount) }
     var originalAmount by remember { mutableStateOf(receipt.originalAmount) }
     var storeName by remember { mutableStateOf(receipt.storeName) }
+    var sourceApp by remember { mutableStateOf(receipt.sourceApp) }
     var paymentTime by remember { mutableStateOf(receipt.paymentTime) }
     var paymentMethod by remember { mutableStateOf(receipt.paymentMethod) }
     var orderNumber by remember { mutableStateOf(receipt.orderNumber) }
@@ -197,6 +198,14 @@ fun ConfirmScreen(
                             .padding(bottom = 8.dp)
                     )
                     OutlinedTextField(
+                        value = sourceApp,
+                        onValueChange = { sourceApp = it },
+                        label = { Text(stringResource(org.caojun.shotocr.accounting.R.string.source_app)) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp)
+                    )
+                    OutlinedTextField(
                         value = paymentTime,
                         onValueChange = { paymentTime = it },
                         label = { Text(stringResource(org.caojun.shotocr.accounting.R.string.payment_time)) },
@@ -339,6 +348,7 @@ fun ConfirmScreen(
                         paymentMethod = paymentMethod,
                         orderNumber = orderNumber,
                         items = items,
+                        sourceApp = sourceApp,
                         categoryId = categoryId
                     )
                     scope.launch {

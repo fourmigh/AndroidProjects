@@ -66,7 +66,7 @@ class ConfigurableReceiptParser(
         val amountRegex = Regex(actualAmountRegex)
 
         for (line in lines) {
-            val trimmed = line.trim()
+            val trimmed = normalizeOcrAmountLine(line.trim())
             if (!trimmed.startsWith("-")) continue
             val rawValue = extractNumber(amountRegex, trimmed) ?: continue
             if (Math.abs(rawValue) <= 1) continue
@@ -79,10 +79,11 @@ class ConfigurableReceiptParser(
             if (!hasKeyword) continue
             if (config.amountExcludePatterns.any { pattern -> line.contains(pattern) }) continue
 
-            val amountLine = if (extractNumber(amountRegex, line) != null) line
+            val rawAmountLine = if (extractNumber(amountRegex, line) != null) line
             else if (i + 1 < lines.size) lines[i + 1]
             else null
-            if (amountLine == null) continue
+            if (rawAmountLine == null) continue
+            val amountLine = normalizeOcrAmountLine(rawAmountLine)
             val rawValue = extractNumber(amountRegex, amountLine) ?: continue
             return Math.abs(applyDecimalInference(rawValue, amountLine, originalAmount))
         }
@@ -105,7 +106,6 @@ class ConfigurableReceiptParser(
     }
 
     override fun extractDiscount(lines: List<String>, originalAmount: Double?): Double? {
-        val amountPattern = Regex("""(-?\d+\.?\d+)""")
         val datePattern = Regex("""\d{4}[-/]\d{1,2}[-/]\d{1,2}""")
         val processedIndices = mutableSetOf<Int>()
         var totalDiscount = 0.0
@@ -119,19 +119,16 @@ class ConfigurableReceiptParser(
             val hasKeyword = effectiveDiscountKeywords.any { keyword -> line.contains(keyword) }
             if (!hasKeyword) continue
 
-            val match = amountPattern.find(line)
-            if (match != null) {
-                val value = match.groupValues[1].toDoubleOrNull()
-                if (value != null && Math.abs(value) > 0) {
-                    totalDiscount += Math.abs(value)
-                    found = true
-                    processedIndices.add(i)
-                }
+            val value = findDiscountAmount(line)
+            if (value != null && Math.abs(value) > 0) {
+                totalDiscount += Math.abs(value)
+                found = true
+                processedIndices.add(i)
                 continue
             }
 
             val neighbor = selectDiscountNeighbor(
-                lines, i, amountPattern, effectiveDiscountKeywords, datePattern, originalAmount, processedIndices
+                lines, i, effectiveDiscountKeywords, datePattern, originalAmount, processedIndices
             )
             if (neighbor != null) {
                 totalDiscount += Math.abs(neighbor.second)

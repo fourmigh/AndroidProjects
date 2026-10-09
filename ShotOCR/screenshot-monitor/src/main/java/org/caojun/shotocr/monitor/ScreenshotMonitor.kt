@@ -71,7 +71,7 @@ class ScreenshotMonitor(private val context: Context) {
                             val dateColumn = it.getColumnIndexOrThrow(MediaStore.Images.Media.DATE_ADDED)
                             val dateAdded = it.getLong(dateColumn)
                             val now = System.currentTimeMillis()
-                            if (now - dateAdded < debounceMs * 2) {
+                            if (now - dateAdded * 1000 < debounceMs * 2) {
                                 Log.d(TAG, "onChange: Found recent media, processing uri=$uri")
                                 handleMediaChange(uri)
                             } else {

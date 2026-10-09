@@ -211,4 +211,91 @@ class ReceiptParserTest {
 
         assertEquals("2026-09-16 09:48:20", result.paymentTime)
     }
+
+    @Test
+    fun parser_detectsSourceAppFromUnionPay() {
+        val result = ReceiptParser().parse(unionPayText)
+
+        assertEquals("云闪付", result.sourceApp)
+    }
+
+    @Test
+    fun parser_detectsSourceAppFromUnionPayAmountBelowOrder() {
+        val result = ReceiptParser().parse(unionPayTextAmountBelowOrder)
+
+        assertEquals("云闪付", result.sourceApp)
+    }
+
+    @Test
+    fun parser_detectsSourceAppFromWeChat() {
+        val text = """
+            微信支付
+            商户A
+            交易成功
+            ¥30.00
+            订单金额
+            微信支付-零钱
+        """.trimIndent()
+        val result = ReceiptParser().parse(text)
+
+        assertEquals("微信", result.sourceApp)
+    }
+
+    @Test
+    fun configurableParser_detectsSourceAppFromUnionPay() {
+        val result = ConfigurableReceiptParser(ReceiptParseConfig.default()).parse(unionPayText)
+
+        assertEquals("云闪付", result.sourceApp)
+    }
+
+    private val alipayOcrDashAmountText = """
+        日为7414
+        15:58:39144支
+        账单详情
+        肯德基(上海塘桥餐厅
+        -9-77
+        交易成功
+        11.20
+        订单金额
+        网商银行福利-0.90
+        金抵扣
+        支付18VIP到店-0.50
+        折扣券
+        百次立减
+        -0.03>
+        2026-10-0807:06:50
+        支付时间
+        网商银行储蓄卡(3841)>
+        付款方式
+        商品说明
+        KFC_PREAF100126832247827649007
+        查看购物详情
+        支付奖励
+        已领取2积分>
+        推荐服务
+        领银行卡立减金，支付就可用
+        去查看>
+        订单号
+        2026100823001465011447014045
+        商家可扫码退款或查询交易
+        商家订单号
+    """.trimIndent()
+
+    @Test
+    fun basicParser_ocrDashAsDecimalPoint_parsesAmount() {
+        val result = ReceiptParser().parse(alipayOcrDashAmountText)
+
+        assertEquals(11.2, result.originalAmount!!, 0.001)
+        assertEquals(9.77, result.amount!!, 0.001)
+        assertEquals(1.43, result.discount!!, 0.001)
+    }
+
+    @Test
+    fun configurableParser_ocrDashAsDecimalPoint_parsesAmount() {
+        val result = ConfigurableReceiptParser(ReceiptParseConfig.default()).parse(alipayOcrDashAmountText)
+
+        assertEquals(11.2, result.originalAmount!!, 0.001)
+        assertEquals(9.77, result.amount!!, 0.001)
+        assertEquals(1.43, result.discount!!, 0.001)
+    }
 }

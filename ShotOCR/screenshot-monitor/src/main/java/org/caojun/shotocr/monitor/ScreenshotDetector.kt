@@ -27,20 +27,31 @@ object ScreenshotDetector {
         }
     }
 
+    /**
+     * 判断某个 MediaStore uri 是否为「新产生的截图」。
+     * 已删除、回收站(trashed)、写入中(pending) 的项目一律返回 null，
+     * 避免相册删除等操作被误判为截图事件。
+     */
     fun classifyScreenshot(
         contentResolver: ContentResolver,
         uri: Uri
     ): Screenshot? {
         Log.d(TAG, "classifyScreenshot: Processing uri=$uri")
 
-        val projection = arrayOf(
+        val projection = mutableListOf(
             MediaStore.Images.Media.DISPLAY_NAME,
             MediaStore.Images.Media.RELATIVE_PATH,
             MediaStore.Images.Media.DATE_ADDED
         )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            projection.add(MediaStore.MediaColumns.IS_PENDING)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            projection.add(MediaStore.MediaColumns.IS_TRASHED)
+        }
 
         val cursor = try {
-            contentResolver.query(uri, projection, null, null, null)
+            contentResolver.query(uri, projection.toTypedArray(), null, null, null)
         } catch (e: Exception) {
             val msg = e.message ?: ""
             if (msg.contains("pending", ignoreCase = true) || msg.contains("trashed", ignoreCase = true)) {
@@ -52,25 +63,38 @@ object ScreenshotDetector {
         }
 
         if (cursor == null) {
-            Log.w(TAG, "classifyScreenshot: MediaStore query returned null for uri=$uri, trying fallback")
-            return fallbackClassify(uri)
+            Log.w(TAG, "classifyScreenshot: MediaStore query returned null for uri=$uri, skip")
+            return null
         }
 
         cursor.use {
             if (!it.moveToFirst()) {
-                Log.w(TAG, "classifyScreenshot: Cursor is empty for uri=$uri, trying fallback")
-                return fallbackClassify(uri)
+                Log.w(TAG, "classifyScreenshot: Cursor is empty (deleted/not found) for uri=$uri, skip")
+                return null
             }
 
-            val displayName = it.getString(0)
-            val relativePath = it.getString(1) ?: ""
-            val dateAdded = it.getLong(2)
+            val displayName = it.getString(it.getColumnIndexOrThrow(MediaStore.Images.Media.DISPLAY_NAME))
+            val relativePath = it.getString(it.getColumnIndexOrThrow(MediaStore.Images.Media.RELATIVE_PATH)) ?: ""
+            val dateAdded = it.getLong(it.getColumnIndexOrThrow(MediaStore.Images.Media.DATE_ADDED))
 
-            Log.d(TAG, "classifyScreenshot: displayName=$displayName, relativePath=$relativePath, dateAdded=$dateAdded")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val pending = it.getInt(it.getColumnIndexOrThrow(MediaStore.MediaColumns.IS_PENDING))
+                if (pending == 1) {
+                    Log.d(TAG, "classifyScreenshot: Item is still pending for uri=$uri, skip")
+                    return null
+                }
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                val trashed = it.getInt(it.getColumnIndexOrThrow(MediaStore.MediaColumns.IS_TRASHED))
+                if (trashed == 1) {
+                    Log.d(TAG, "classifyScreenshot: Item is trashed for uri=$uri, skip")
+                    return null
+                }
+            }
 
             if (displayName == null) {
-                Log.w(TAG, "classifyScreenshot: displayName is null, trying fallback")
-                return fallbackClassify(uri)
+                Log.w(TAG, "classifyScreenshot: displayName is null for uri=$uri, skip")
+                return null
             }
 
             val text = "$displayName $relativePath".lowercase()
@@ -88,52 +112,5 @@ object ScreenshotDetector {
                 timestamp = dateAdded * 1000
             )
         }
-    }
-
-    private fun fallbackClassify(uri: Uri): Screenshot? {
-        Log.d(TAG, "fallbackClassify: Attempting to classify from URI path: $uri")
-        val uriString = uri.toString()
-
-        val pathSegments = uri.pathSegments
-        if (pathSegments.isNullOrEmpty()) {
-            Log.w(TAG, "fallbackClassify: No path segments in uri")
-            return null
-        }
-
-        val lastSegment = pathSegments.lastOrNull()
-        Log.d(TAG, "fallbackClassify: Last path segment=$lastSegment")
-
-        if (lastSegment != null) {
-            val lower = lastSegment.lowercase()
-            val isScreenshot = screenshotKeywords.any { kw -> lower.contains(kw) }
-            Log.d(TAG, "fallbackClassify: Keyword match=$isScreenshot (segment='$lower')")
-
-            if (isScreenshot) {
-                val timestamp = System.currentTimeMillis()
-                return Screenshot(
-                    uri = uri,
-                    path = uriString,
-                    displayName = lastSegment,
-                    timestamp = timestamp
-                )
-            }
-        }
-
-        for (segment in pathSegments) {
-            val lower = segment.lowercase()
-            if (pathKeywords.any { kw -> lower.contains(kw) }) {
-                Log.d(TAG, "fallbackClassify: Path keyword match in segment='$segment'")
-                val timestamp = System.currentTimeMillis()
-                return Screenshot(
-                    uri = uri,
-                    path = uriString,
-                    displayName = segment,
-                    timestamp = timestamp
-                )
-            }
-        }
-
-        Log.d(TAG, "fallbackClassify: No screenshot pattern found")
-        return null
     }
 }
