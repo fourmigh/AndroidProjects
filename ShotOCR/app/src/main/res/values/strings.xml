@@ -18,8 +18,8 @@
     <string name="notification_listening">正在监听截屏…</string>
     <string name="notification_permission_desc">需要通知权限来显示截屏监听状态，请授予通知权限。</string>
     <string name="grant_notification_permission">授予通知权限</string>
-    <string name="overlay_permission_desc">需要悬浮窗权限以在截图后自动弹出确认界面，请在设置中开启。</string>
-    <string name="grant_overlay_permission">开启悬浮窗权限</string>
+    <string name="full_screen_intent_permission_desc">需要「全屏通知」权限以在截图后自动弹出确认界面（Android 14+），请在设置中开启。</string>
+    <string name="grant_full_screen_intent_permission">开启全屏通知权限</string>
     <string name="confirm_channel_name">截图确认</string>
     <string name="confirm_channel_desc">截图识别完成后自动弹出确认界面</string>
     <string name="screenshot_recognized">识别完成，请确认</string>

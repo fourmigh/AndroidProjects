@@ -18,8 +18,8 @@
     <string name="notification_listening">Monitoring screenshots…</string>
     <string name="notification_permission_desc">Notification permission is needed to show screenshot monitoring status. Please grant the notification permission.</string>
     <string name="grant_notification_permission">Grant Notification Permission</string>
-    <string name="overlay_permission_desc">Overlay permission is needed to automatically show the confirmation screen after taking a screenshot. Please enable it in settings.</string>
-    <string name="grant_overlay_permission">Enable Overlay Permission</string>
+    <string name="full_screen_intent_permission_desc">Full-screen notification permission is needed to automatically show the confirmation screen after taking a screenshot (Android 14+). Please enable it in settings.</string>
+    <string name="grant_full_screen_intent_permission">Enable Full-screen Notification</string>
     <string name="confirm_channel_name">Screenshot Confirmation</string>
     <string name="confirm_channel_desc">Automatically show confirmation screen after screenshot recognition</string>
     <string name="screenshot_recognized">Recognized, please confirm</string>

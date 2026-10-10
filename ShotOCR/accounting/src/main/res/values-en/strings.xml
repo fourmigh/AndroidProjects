@@ -45,4 +45,8 @@
     <string name="summary_order_discount">Order ¥%1$s · Discount ¥%2$s (%3$s%% rate)</string>
     <string name="summary_total">Total</string>
     <string name="accounting_test_title">Accounting Test</string>
+    <string name="cancel_delete_screenshot_title">Delete screenshot?</string>
+    <string name="cancel_delete_screenshot_message">This receipt is not saved. Delete this screenshot?</string>
+    <string name="delete_screenshot">Delete screenshot</string>
+    <string name="keep_screenshot">Keep screenshot</string>
 </resources>

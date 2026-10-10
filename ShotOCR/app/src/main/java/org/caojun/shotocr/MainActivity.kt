@@ -2,6 +2,7 @@ package org.caojun.shotocr
 
 import android.Manifest
 import android.app.ActivityManager
+import android.app.NotificationManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -61,7 +62,9 @@ fun MainScreen() {
     var hasNotificationPermission by remember {
         mutableStateOf(checkNotificationPermission(context))
     }
-    var hasOverlayPermission by remember { mutableStateOf(checkOverlayPermission(context)) }
+    var hasFullScreenIntentPermission by remember {
+        mutableStateOf(checkFullScreenIntentPermission(context))
+    }
     var hasUsageAccess by remember {
         mutableStateOf(ForegroundAppResolver.isUsageAccessGranted(context))
     }
@@ -74,15 +77,11 @@ fun MainScreen() {
         Log.d("ShotOCR/MainActivity", "Usage access result: granted=$hasUsageAccess")
     }
 
-    val overlayPermissionLauncher = rememberLauncherForActivityResult(
+    val fullScreenIntentLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { _ ->
-        hasOverlayPermission = checkOverlayPermission(context)
-        Log.d("ShotOCR/MainActivity", "Overlay permission result: granted=$hasOverlayPermission")
-        if (hasPermission && hasNotificationPermission && hasOverlayPermission && !serviceRunning) {
-            startScreenshotService(context)
-            serviceRunning = true
-        }
+        hasFullScreenIntentPermission = checkFullScreenIntentPermission(context)
+        Log.d("ShotOCR/MainActivity", "Full screen intent result: granted=$hasFullScreenIntentPermission")
     }
 
     val storagePermissionLauncher = rememberLauncherForActivityResult(
@@ -107,9 +106,9 @@ fun MainScreen() {
         }
     }
 
-    LaunchedEffect(hasPermission, hasNotificationPermission, hasOverlayPermission) {
-        if (hasPermission && hasNotificationPermission && hasOverlayPermission && !serviceRunning) {
-            Log.d("ShotOCR/MainActivity", "Auto-starting service: storage=$hasPermission, notification=$hasNotificationPermission, overlay=$hasOverlayPermission")
+    LaunchedEffect(hasPermission, hasNotificationPermission) {
+        if (hasPermission && hasNotificationPermission && !serviceRunning) {
+            Log.d("ShotOCR/MainActivity", "Auto-starting service: storage=$hasPermission, notification=$hasNotificationPermission")
             startScreenshotService(context)
             serviceRunning = true
         }
@@ -192,7 +191,7 @@ fun MainScreen() {
                 }
             }
 
-            if (!hasPermission || !hasNotificationPermission || !hasOverlayPermission) {
+            if (!hasPermission || !hasNotificationPermission) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
@@ -234,24 +233,6 @@ fun MainScreen() {
                                 Text(stringResource(R.string.grant_notification_permission))
                             }
                         }
-                        if (hasPermission && hasNotificationPermission && !hasOverlayPermission) {
-                            Text(
-                                text = stringResource(R.string.overlay_permission_desc),
-                                fontSize = 14.sp,
-                                modifier = Modifier.padding(bottom = 12.dp)
-                            )
-                            Button(
-                                onClick = {
-                                    val intent = Intent(
-                                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                        Uri.parse("package:${context.packageName}")
-                                    )
-                                    overlayPermissionLauncher.launch(intent)
-                                }
-                            ) {
-                                Text(stringResource(R.string.grant_overlay_permission))
-                            }
-                        }
                     }
                 }
             }
@@ -277,6 +258,36 @@ fun MainScreen() {
                             }
                         ) {
                             Text(stringResource(R.string.grant_usage_access_permission))
+                        }
+                    }
+                }
+            }
+
+            if (!hasFullScreenIntentPermission) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            text = stringResource(R.string.full_screen_intent_permission_desc),
+                            fontSize = 14.sp,
+                            modifier = Modifier.padding(bottom = 12.dp)
+                        )
+                        Button(
+                            onClick = {
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                                    val intent = Intent(
+                                        Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT,
+                                        Uri.parse("package:${context.packageName}")
+                                    )
+                                    fullScreenIntentLauncher.launch(intent)
+                                }
+                            }
+                        ) {
+                            Text(stringResource(R.string.grant_full_screen_intent_permission))
                         }
                     }
                 }
@@ -343,8 +354,11 @@ private fun checkNotificationPermission(context: android.content.Context): Boole
     ) == PackageManager.PERMISSION_GRANTED
 }
 
-private fun checkOverlayPermission(context: android.content.Context): Boolean {
-    return Settings.canDrawOverlays(context)
+private fun checkFullScreenIntentPermission(context: android.content.Context): Boolean {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) return true
+    val notificationManager =
+        context.getSystemService(android.content.Context.NOTIFICATION_SERVICE) as NotificationManager
+    return notificationManager.canUseFullScreenIntent()
 }
 
 private fun getStoragePermissions(): Array<String> {

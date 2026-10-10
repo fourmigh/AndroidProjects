@@ -152,7 +152,9 @@ class ConfirmActivity : ComponentActivity() {
                     ConfirmScreen(
                         receipt = receipt,
                         onSaved = { savedReceipt -> handleSave(savedReceipt) },
-                        onCancel = { finish() }
+                        onCancel = { finish() },
+                        onDeleteScreenshot = { deleteScreenshot(receipt.screenshotUri) },
+                        askDeleteOnCancel = receipt.screenshotUri != Uri.EMPTY
                     )
                 }
             }

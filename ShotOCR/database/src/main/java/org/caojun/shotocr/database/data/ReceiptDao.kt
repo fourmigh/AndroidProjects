@@ -16,6 +16,9 @@ interface ReceiptDao {
     @Query("SELECT * FROM receipts WHERE id = :id")
     suspend fun getById(id: Long): ReceiptEntity?
 
+    @Query("SELECT EXISTS(SELECT 1 FROM receipts WHERE orderNumber = :orderNumber AND sourceApp = :sourceApp)")
+    suspend fun existsByOrderNumber(orderNumber: String, sourceApp: String): Boolean
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(receipt: ReceiptEntity): Long
 

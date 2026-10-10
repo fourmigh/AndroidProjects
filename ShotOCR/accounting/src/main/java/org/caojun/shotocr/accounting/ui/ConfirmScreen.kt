@@ -40,7 +40,9 @@ import org.caojun.shotocr.classification.ui.CategorySelectField
 fun ConfirmScreen(
     receipt: EditableReceipt,
     onSaved: (EditableReceipt) -> Unit = {},
-    onCancel: () -> Unit = {}
+    onCancel: () -> Unit = {},
+    onDeleteScreenshot: () -> Unit = {},
+    askDeleteOnCancel: Boolean = false
 ) {
     var amount by remember { mutableStateOf(receipt.amount) }
     var discount by remember { mutableStateOf(receipt.discount) }
@@ -54,11 +56,36 @@ fun ConfirmScreen(
     var categoryId by remember { mutableStateOf(receipt.categoryId) }
     var showSaveToast by remember { mutableStateOf(false) }
     var showFullscreenImage by remember { mutableStateOf(false) }
+    var showCancelDialog by remember { mutableStateOf(false) }
     var rawTextExpanded by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+
+    if (showCancelDialog) {
+        AlertDialog(
+            onDismissRequest = { showCancelDialog = false },
+            title = { Text(stringResource(org.caojun.shotocr.accounting.R.string.cancel_delete_screenshot_title)) },
+            text = { Text(stringResource(org.caojun.shotocr.accounting.R.string.cancel_delete_screenshot_message)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showCancelDialog = false
+                    onDeleteScreenshot()
+                }) {
+                    Text(stringResource(org.caojun.shotocr.accounting.R.string.delete_screenshot))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showCancelDialog = false
+                    onCancel()
+                }) {
+                    Text(stringResource(org.caojun.shotocr.accounting.R.string.keep_screenshot))
+                }
+            }
+        )
+    }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -66,7 +93,9 @@ fun ConfirmScreen(
             TopAppBar(
                 title = { Text(stringResource(org.caojun.shotocr.accounting.R.string.confirm_title)) },
                 navigationIcon = {
-                    TextButton(onClick = onCancel) {
+                    TextButton(onClick = {
+                        if (askDeleteOnCancel) showCancelDialog = true else onCancel()
+                    }) {
                         Text(stringResource(org.caojun.shotocr.accounting.R.string.cancel))
                     }
                 }

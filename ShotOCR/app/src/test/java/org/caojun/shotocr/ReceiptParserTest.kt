@@ -298,4 +298,57 @@ class ReceiptParserTest {
         assertEquals(9.77, result.amount!!, 0.001)
         assertEquals(1.43, result.discount!!, 0.001)
     }
+
+    private val meiliOriginalAboveActualText = """
+        日8614
+        13:13:09144
+        X
+        梅里古镇
+        -9.60
+        原价
+        ¥10.00
+        优惠
+        摇优惠·银行卡多笔立减优惠¥0.40
+        支付成功
+        当前状态
+        支付时间
+        2026年10月5日16:31:13
+        亭车费用-梅里古镇-沪MZ0081-10元
+        商品
+        商户全称
+        无锡劲里商业管理有限公司
+        收单机构
+        财付通支付科技有限公司
+        兴业银行储蓄卡(5719)
+        支付方式
+        4500000453202610059952337463
+        交易单号
+        商户单号
+        POCC202610051629340913218207
+        梅里古镇>
+        商家小程序
+        账单服务
+        发起群收款
+        ？对订单有疑惑
+        目在此商户的交易
+        ☆申请电子凭证
+    """.trimIndent()
+
+    @Test
+    fun basicParser_originalAmountBelowKeyword_parsesOriginal() {
+        val result = ReceiptParser().parse(meiliOriginalAboveActualText)
+
+        assertEquals(10.0, result.originalAmount!!, 0.001)
+        assertEquals(9.6, result.amount!!, 0.001)
+        assertEquals(0.4, result.discount!!, 0.001)
+    }
+
+    @Test
+    fun configurableParser_originalAmountBelowKeyword_parsesOriginal() {
+        val result = ConfigurableReceiptParser(ReceiptParseConfig.default()).parse(meiliOriginalAboveActualText)
+
+        assertEquals(10.0, result.originalAmount!!, 0.001)
+        assertEquals(9.6, result.amount!!, 0.001)
+        assertEquals(0.4, result.discount!!, 0.001)
+    }
 }

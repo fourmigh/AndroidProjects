@@ -28,6 +28,7 @@ class ConfigurableReceiptParser(
 
     override fun extractOriginalAmount(lines: List<String>): Double? {
         val amountPattern = Regex(actualOriginalAmountRegex)
+        val currencyPattern = Regex("""[¥￥]\s*(\d+\.?\d*)""")
 
         for (i in lines.indices) {
             val line = lines[i]
@@ -37,9 +38,22 @@ class ConfigurableReceiptParser(
                 if (match != null) {
                     return match.groupValues[1].toDoubleOrNull()
                 }
+                for (offset in listOf(1, 2, -1, -2)) {
+                    val j = i + offset
+                    if (j < 0 || j >= lines.size) continue
+                    val adjacent = lines[j].trim()
+                    if (adjacent.startsWith("-")) continue
+                    val currencyMatch = currencyPattern.find(adjacent) ?: continue
+                    val value = currencyMatch.groupValues[1].toDoubleOrNull()
+                    if (value != null && value > 0) {
+                        return value
+                    }
+                }
                 for (j in maxOf(0, i - 2)..minOf(lines.size - 1, i + 2)) {
                     if (j == i) continue
-                    val adjacentMatch = amountPattern.find(lines[j])
+                    val adjacent = lines[j].trim()
+                    if (adjacent.startsWith("-")) continue
+                    val adjacentMatch = amountPattern.find(adjacent)
                     if (adjacentMatch != null) {
                         val value = adjacentMatch.groupValues[1].toDoubleOrNull()
                         if (value != null && value > 0) {

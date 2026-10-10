@@ -36,6 +36,7 @@ open class ReceiptParser : DataParser<ReceiptData> {
 
     protected open fun extractOriginalAmount(lines: List<String>): Double? {
         val amountPattern = Regex("""(\d+\.?\d+)""")
+        val currencyPattern = Regex("""[¥￥]\s*(\d+\.?\d*)""")
         val keywords = listOf("订单金额", "原价", "原价金额", "商品总价", "总价", "合计金额")
 
         for (i in lines.indices) {
@@ -46,9 +47,22 @@ open class ReceiptParser : DataParser<ReceiptData> {
                 if (match != null) {
                     return match.groupValues[1].toDoubleOrNull()
                 }
+                for (offset in listOf(1, 2, -1, -2)) {
+                    val j = i + offset
+                    if (j < 0 || j >= lines.size) continue
+                    val adjacent = lines[j].trim()
+                    if (adjacent.startsWith("-")) continue
+                    val currencyMatch = currencyPattern.find(adjacent) ?: continue
+                    val value = currencyMatch.groupValues[1].toDoubleOrNull()
+                    if (value != null && value > 0) {
+                        return value
+                    }
+                }
                 for (j in maxOf(0, i - 2)..minOf(lines.size - 1, i + 2)) {
                     if (j == i) continue
-                    val adjacentMatch = amountPattern.find(lines[j])
+                    val adjacent = lines[j].trim()
+                    if (adjacent.startsWith("-")) continue
+                    val adjacentMatch = amountPattern.find(adjacent)
                     if (adjacentMatch != null) {
                         val value = adjacentMatch.groupValues[1].toDoubleOrNull()
                         if (value != null && value > 0) {

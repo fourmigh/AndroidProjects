@@ -24,7 +24,6 @@ import org.caojun.shotocr.parser.ReceiptData
 import org.caojun.shotocr.parser.ReceiptParseConfig
 import org.caojun.shotocr.parser.ReceiptParser
 import org.caojun.shotocr.database.data.AppDatabase
-import org.caojun.shotocr.database.data.ProcessedReceiptEntity
 import org.caojun.shotocr.accounting.ui.ConfirmActivity
 import org.caojun.shotocr.util.ForegroundAppResolver
 
@@ -182,11 +181,8 @@ class ScreenshotService : LifecycleService() {
             var isDuplicate = false
             if (!orderNumber.isNullOrEmpty()) {
                 val appKey = sourceApp ?: ""
-                val processedDao = AppDatabase.getInstance(applicationContext).processedReceiptDao()
-                isDuplicate = withContext(Dispatchers.IO) { processedDao.exists(orderNumber, appKey) }
-                withContext(Dispatchers.IO) {
-                    processedDao.insert(ProcessedReceiptEntity(orderNumber, appKey))
-                }
+                val receiptDao = AppDatabase.getInstance(applicationContext).receiptDao()
+                isDuplicate = withContext(Dispatchers.IO) { receiptDao.existsByOrderNumber(orderNumber, appKey) }
             }
             Log.d(TAG, "processScreenshot: orderNumber=$orderNumber, isDuplicate=$isDuplicate")
 
