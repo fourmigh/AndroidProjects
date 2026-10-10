@@ -58,6 +58,15 @@ import org.caojun.shotocr.classification.repository.CategoryRepository
 import org.caojun.shotocr.classification.repository.CategoryRuleRepository
 import org.caojun.shotocr.database.category.DefaultCategoryRules
 import org.caojun.shotocr.translate.ui.TranslatableI18nFields
+import android.content.Context
+import androidx.compose.foundation.background
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.Slider
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import org.caojun.shotocr.classification.classifier.CategoryRule
+import org.caojun.shotocr.classification.classifier.CategoryTextMatcher
+import org.caojun.shotocr.database.category.DefaultCategories
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -66,6 +75,8 @@ fun CategoryManagementScreen(
     onBack: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val listState = rememberLazyListState()
     val categories by remember {
         CategoryRepository.observeCategories()
     }.collectAsStateWithLifecycle(initialValue = emptyList())
@@ -73,11 +84,52 @@ fun CategoryManagementScreen(
     val groups = remember(categories) { categories.toGroups() }
     val expandedIds = remember { mutableStateOf(setOf<String>()) }
 
+    var searchText by remember { mutableStateOf("") }
+    var threshold by remember { mutableStateOf(0.4f) }
+    var rules by remember { mutableStateOf<List<CategoryRule>>(emptyList()) }
+
     var editing by remember { mutableStateOf<EditingTarget?>(null) }
     var addingSubTo by remember { mutableStateOf<Category?>(null) }
     var showAddTopDialog by remember { mutableStateOf(false) }
     var deleteBlockedNotice by remember { mutableStateOf<Category?>(null) }
     var editingKeywords by remember { mutableStateOf<Category?>(null) }
+
+    LaunchedEffect(Unit) {
+        rules = CategoryRuleRepository.loadRules()
+    }
+
+    val matchedIds = remember(searchText, threshold, categories, rules) {
+        val query = searchText.trim()
+        if (query.isEmpty()) {
+            emptySet()
+        } else {
+            categories
+                .filter { scoreOf(context, it, query, rules) >= threshold }
+                .map { it.id }
+                .toSet()
+        }
+    }
+
+    val highlightedGroupIds = remember(matchedIds, groups) {
+        buildSet {
+            groups.forEach { group ->
+                if (group.category.id in matchedIds) add(group.category.id)
+                group.children.forEach { child ->
+                    if (child.id in matchedIds) add(group.category.id)
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(searchText, highlightedGroupIds) {
+        if (searchText.isNotBlank() && highlightedGroupIds.isNotEmpty()) {
+            expandedIds.value = expandedIds.value + highlightedGroupIds
+            val index = groups.indexOfFirst { it.category.id in highlightedGroupIds }
+            if (index >= 0) {
+                listState.animateScrollToItem(index)
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -99,48 +151,91 @@ fun CategoryManagementScreen(
             }
         }
     ) { padding ->
-        LazyColumn(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding),
-            contentPadding = PaddingValues(16.dp, 16.dp, 16.dp, 96.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+                .padding(padding)
         ) {
-            if (groups.isEmpty()) {
-                item {
-                    Text(
-                        text = stringResource(R.string.category_loading),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.outline
-                    )
-                }
+            OutlinedTextField(
+                value = searchText,
+                onValueChange = { searchText = it },
+                label = { Text(stringResource(R.string.category_search_hint)) },
+                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                singleLine = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = stringResource(R.string.category_search_threshold),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.outline
+                )
+                Slider(
+                    value = threshold,
+                    onValueChange = { threshold = it },
+                    valueRange = 0f..1f,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(start = 8.dp)
+                )
+                Text(
+                    text = String.format(Locale.ROOT, "%.2f", threshold),
+                    style = MaterialTheme.typography.bodySmall
+                )
             }
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                contentPadding = PaddingValues(16.dp, 8.dp, 16.dp, 96.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (groups.isEmpty()) {
+                    item {
+                        Text(
+                            text = stringResource(R.string.category_loading),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                    }
+                }
 
-            groups.forEach { group ->
-                item(key = group.category.id) {
-                    CategoryGroupCard(
-                        group = group,
-                        expanded = group.category.id in expandedIds.value,
-                        onToggleExpand = {
-                            expandedIds.value = expandedIds.value.let {
-                                if (group.category.id in it) it - group.category.id else it + group.category.id
+                groups.forEach { group ->
+                    item(key = group.category.id) {
+                        CategoryGroupCard(
+                            group = group,
+                            expanded = group.category.id in expandedIds.value,
+                            highlightedGroup = group.category.id in highlightedGroupIds,
+                            highlightedChildIds = matchedIds,
+                            onToggleExpand = {
+                                expandedIds.value = expandedIds.value.let {
+                                    if (group.category.id in it) it - group.category.id else it + group.category.id
+                                }
+                            },
+                            onAddChild = { addingSubTo = group.category },
+                            onRename = { editing = EditingTarget(it) },
+                            onEditKeywords = { editingKeywords = it },
+                            onDelete = { category ->
+                                val hasChildren = groups
+                                    .firstOrNull { it.category.id == category.id }
+                                    ?.children
+                                    ?.isNotEmpty() == true
+                                if (category.isTopLevel && hasChildren) {
+                                    deleteBlockedNotice = category
+                                } else {
+                                    scope.launch { CategoryRepository.deleteCustom(category) }
+                                }
                             }
-                        },
-                        onAddChild = { addingSubTo = group.category },
-                        onRename = { editing = EditingTarget(it) },
-                        onEditKeywords = { editingKeywords = it },
-                        onDelete = { category ->
-                            val hasChildren = groups
-                                .firstOrNull { it.category.id == category.id }
-                                ?.children
-                                ?.isNotEmpty() == true
-                            if (category.isTopLevel && hasChildren) {
-                                deleteBlockedNotice = category
-                            } else {
-                                scope.launch { CategoryRepository.deleteCustom(category) }
-                            }
-                        }
-                    )
+                        )
+                    }
                 }
             }
         }
@@ -231,6 +326,8 @@ private data class EditingTarget(val category: Category)
 private fun CategoryGroupCard(
     group: CategoryGroup,
     expanded: Boolean,
+    highlightedGroup: Boolean,
+    highlightedChildIds: Set<String>,
     onToggleExpand: () -> Unit,
     onAddChild: () -> Unit,
     onRename: (Category) -> Unit,
@@ -239,7 +336,9 @@ private fun CategoryGroupCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Row(
@@ -257,7 +356,12 @@ private fun CategoryGroupCard(
                 Text(
                     text = group.category.displayName(),
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Medium,
+                    fontWeight = if (highlightedGroup) FontWeight.Bold else FontWeight.Medium,
+                    color = if (highlightedGroup) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    },
                     modifier = Modifier.weight(1f)
                 )
                 IconButton(onClick = { onAddChild() }) {
@@ -296,12 +400,29 @@ private fun CategoryGroupCard(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .background(
+                                    if (child.id in highlightedChildIds) {
+                                        MaterialTheme.colorScheme.primaryContainer
+                                    } else {
+                                        Color.Transparent
+                                    }
+                                )
                                 .padding(start = 12.dp, top = 4.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
                                 text = child.displayName(),
                                 style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = if (child.id in highlightedChildIds) {
+                                    FontWeight.Bold
+                                } else {
+                                    FontWeight.Normal
+                                },
+                                color = if (child.id in highlightedChildIds) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurface
+                                },
                                 modifier = Modifier.weight(1f)
                             )
                             IconButton(onClick = { onEditKeywords(child) }) {
@@ -467,4 +588,32 @@ private fun CategoryKeywordsDialog(
             }
         }
     )
+}
+
+/** 分类的显示名（与 Category.displayName() 同逻辑，供非 Composable 环境使用）。 */
+private fun categoryDisplayName(context: Context, category: Category): String {
+    val lang = Locale.getDefault().language
+    category.names[lang]?.let { return it }
+    category.names.values.firstOrNull()?.let { return it }
+    if (category.isDefault) {
+        DefaultCategories.nameResId(category.id)?.let { return context.getString(it) }
+    }
+    return category.name
+}
+
+/** 计算分类与搜索词的匹配分：名称相似度 与 关键词别名 取较大者。 */
+private fun scoreOf(
+    context: Context,
+    category: Category,
+    query: String,
+    rules: List<CategoryRule>
+): Double {
+    val nameScore = CategoryTextMatcher.nameScore(query, categoryDisplayName(context, category))
+    val aliasHit = rules.any { rule ->
+        rule.categoryId == category.id && rule.keywords.any { keyword ->
+            keyword.isNotBlank() &&
+                (keyword.contains(query, ignoreCase = true) || query.contains(keyword, ignoreCase = true))
+        }
+    }
+    return maxOf(nameScore, if (aliasHit) 1.0 else 0.0)
 }

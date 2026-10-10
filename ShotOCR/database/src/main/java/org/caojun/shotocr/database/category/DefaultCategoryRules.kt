@@ -59,7 +59,7 @@ object DefaultCategoryRules {
         ),
         Rule(
             "shopping.retail",
-            listOf("商场", "百货", "优衣库", "专卖店", "门店", "屈臣氏")
+            listOf("商场", "百货", "专卖店", "门店", "屈臣氏")
         ),
         Rule(
             "life.utility",
@@ -104,6 +104,66 @@ object DefaultCategoryRules {
         Rule(
             "growth.finance",
             listOf("理财", "基金", "证券", "投资")
+        ),
+        Rule(
+            "shopping.clothing",
+            listOf("服饰", "服装", "优衣库", "耐克", "阿迪达斯", "鞋", "帽子", "内衣", "运动鞋", "包包")
+        ),
+        Rule(
+            "shopping.daily",
+            listOf("日用", "百货", "洗护", "纸巾", "清洁", "杂货", "名创优品")
+        ),
+        Rule(
+            "shopping.digital",
+            listOf("数码", "电器", "家电", "手机", "电脑", "笔记本", "平板", "耳机", "国美", "苏宁", "小米", "华为", "苹果")
+        ),
+        Rule(
+            "life.beauty",
+            listOf("美容", "美发", "理发", "美甲", "SPA", "美容院", "理发店", "美妆")
+        ),
+        Rule(
+            "life.errand",
+            listOf("跑腿", "代买", "代送", "闪送", "达达")
+        ),
+        Rule(
+            "life.housekeeping",
+            listOf("家政", "保洁", "钟点工", "保姆", "月嫂")
+        ),
+        Rule(
+            "life.repair",
+            listOf("维修", "修理", "家电维修", "疏通", "管道")
+        ),
+        Rule(
+            "life.laundry",
+            listOf("洗衣", "干洗", "洗鞋", "洗衣店")
+        ),
+        Rule(
+            "life.moving",
+            listOf("搬家", "搬家公司", "货运")
+        ),
+        Rule(
+            "transport.travel",
+            listOf("酒店", "旅行", "机票", "火车票", "携程", "飞猪", "去哪儿", "民宿", "住宿", "景区", "门票", "旅行团")
+        ),
+        Rule(
+            "entertainment.parenting",
+            listOf("亲子", "儿童乐园", "母婴", "早教", "儿童")
+        ),
+        Rule(
+            "digital_services.ai",
+            listOf("人工智能", "ChatGPT", "OpenAI", "Claude", "Midjourney", "Copilot", "文心一言", "通义千问", "Kimi", "豆包", "DeepSeek", "大模型", "生成式")
+        ),
+        Rule(
+            "digital_services.software",
+            listOf("软件", "订阅", "Office", "Adobe", "WPS", "VPN")
+        ),
+        Rule(
+            "digital_services.cloud",
+            listOf("云服务", "云服务器", "阿里云", "腾讯云", "华为云", "云盘", "网盘")
+        ),
+        Rule(
+            "digital_services.membership",
+            listOf("会员", "VIP", "续费", "会员充值")
         )
     )
 

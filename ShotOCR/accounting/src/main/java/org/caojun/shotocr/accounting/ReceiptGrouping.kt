@@ -7,6 +7,7 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.ResolverStyle
 import java.time.temporal.TemporalAdjusters
+import java.time.temporal.WeekFields
 import java.util.Locale
 
 data class ReceiptTotals(
@@ -103,6 +104,7 @@ data class WeekSummary(
     val key: String,
     val label: String,
     val rangeLabel: String,
+    val weekNumber: Int,
     val receipts: List<EditableReceipt>
 ) {
     val totals: ReceiptTotals by lazy { totalsOf(receipts) }
@@ -154,14 +156,15 @@ fun buildGroupedData(
             val weeks = entries.groupBy { it.first.weekStartDate }
                 .map { (weekStartDate, weekEntries) ->
                     val receipts = weekEntries.map { it.second }.sortedByDescending { datedDate(it) }
+                    val weekEndDate = weekStartDate.plusDays(6)
+                    val dateRange = weekStartDate.format(DATE_SHORT_NO_YEAR) +
+                        "-" +
+                        weekEndDate.format(DATE_SHORT_NO_YEAR)
                     WeekSummary(
                         key = weekStartDate.toString(),
-                        label = weekStartDate.format(DATE_SHORT) +
-                            " - " +
-                            weekStartDate.plusDays(6).format(DATE_SHORT),
-                        rangeLabel = weekStartDate.format(DATE_SHORT) +
-                            " - " +
-                            weekStartDate.plusDays(6).format(DATE_SHORT),
+                        label = dateRange,
+                        rangeLabel = dateRange,
+                        weekNumber = weekStartDate.get(WeekFields.of(weekStart, 1).weekOfWeekBasedYear()),
                         receipts = receipts
                     )
                 }
@@ -193,4 +196,5 @@ private fun LocalDate.toMonthKey(): String {
 }
 
 private val DATE_SHORT: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy.MM.dd")
+private val DATE_SHORT_NO_YEAR: DateTimeFormatter = DateTimeFormatter.ofPattern("MM.dd")
 private val MONTH_SHORT: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy年M月")

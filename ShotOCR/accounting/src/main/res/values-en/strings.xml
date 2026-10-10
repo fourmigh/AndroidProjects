@@ -50,4 +50,5 @@
     <string name="delete_screenshot">Delete screenshot</string>
     <string name="keep_screenshot">Keep screenshot</string>
     <string name="category_auto_suggested">Auto-suggested</string>
+    <string name="week_number">Week %1$d</string>
 </resources>

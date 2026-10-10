@@ -3,250 +3,51 @@ package org.caojun.shotocr.parser
 import org.caojun.shotocr.patternpicker.PresetType
 import org.caojun.shotocr.patternpicker.RegexPreset
 
+/**
+ * 可配置解析器：只覆盖"数据来源"（关键词、正则、货币等），
+ * 提取算法统一由基类 [ReceiptParser] 提供，避免与基类重复实现。
+ */
 class ConfigurableReceiptParser(
     private val config: ReceiptParseConfig
 ) : ReceiptParser() {
 
-    private val actualOriginalAmountRegex: String
-        get() = RegexPreset.resolveRegex(PresetType.AMOUNT, config.originalAmountPatternPreset, config.originalAmountRegexCustom)
+    private fun resolveAmount(preset: String, custom: String): Regex =
+        Regex(RegexPreset.resolveRegex(PresetType.AMOUNT, preset, custom))
 
-    private val actualPaymentTimeRegex: String
-        get() = RegexPreset.resolveRegex(PresetType.TIME, config.paymentTimePatternPreset, config.paymentTimeRegexCustom)
+    override fun originalAmountKeywords(): List<String> = config.originalAmountKeywords
 
-    private val actualOrderNumberRegex: String
-        get() = RegexPreset.resolveRegex(PresetType.ORDER_NUMBER, config.orderNumberPatternPreset, config.orderNumberRegexCustom)
+    override fun originalAmountPattern(): Regex =
+        resolveAmount(config.originalAmountPatternPreset, config.originalAmountRegexCustom)
 
-    private val actualAmountRegex: String
-        get() = RegexPreset.resolveRegex(PresetType.AMOUNT, config.amountPatternPreset, config.amountRegexCustom)
+    override fun amountKeywords(): List<String> = config.amountKeywords
 
-    private val actualItemRegex: String
-        get() = RegexPreset.resolveRegex(PresetType.ITEM, config.itemPatternPreset, config.itemRegexCustom)
+    override fun amountExcludePatterns(): List<String> = config.amountExcludePatterns
 
-    private val effectiveDiscountKeywords: List<String> by lazy {
+    override fun amountPattern(): Regex =
+        resolveAmount(config.amountPatternPreset, config.amountRegexCustom)
+
+    override fun discountKeywords(): List<String> =
         (ReceiptParseConfig.default().discountKeywords + config.discountKeywords).distinct()
-    }
 
-    override fun extractOriginalAmount(lines: List<String>): Double? {
-        val amountPattern = Regex(actualOriginalAmountRegex)
-        val currencyPattern = Regex("""[¥￥]\s*(\d+\.?\d*)""")
+    override fun discountExcludeKeywords(): List<String> = config.discountExcludeKeywords
 
-        for (i in lines.indices) {
-            val line = lines[i]
-            val hasKeyword = config.originalAmountKeywords.any { keyword -> line.contains(keyword) }
-            if (hasKeyword) {
-                val match = amountPattern.find(line)
-                if (match != null) {
-                    return match.groupValues[1].toDoubleOrNull()
-                }
-                for (offset in listOf(1, 2, -1, -2)) {
-                    val j = i + offset
-                    if (j < 0 || j >= lines.size) continue
-                    val adjacent = lines[j].trim()
-                    if (adjacent.startsWith("-")) continue
-                    val currencyMatch = currencyPattern.find(adjacent) ?: continue
-                    val value = currencyMatch.groupValues[1].toDoubleOrNull()
-                    if (value != null && value > 0) {
-                        return value
-                    }
-                }
-                for (j in maxOf(0, i - 2)..minOf(lines.size - 1, i + 2)) {
-                    if (j == i) continue
-                    val adjacent = lines[j].trim()
-                    if (adjacent.startsWith("-")) continue
-                    val adjacentMatch = amountPattern.find(adjacent)
-                    if (adjacentMatch != null) {
-                        val value = adjacentMatch.groupValues[1].toDoubleOrNull()
-                        if (value != null && value > 0) {
-                            return value
-                        }
-                    }
-                }
-            }
-        }
+    override fun storeNameExcludeKeywords(): List<String> = config.storeNameExcludeKeywords
 
-        for (i in lines.indices) {
-            if (lines[i].contains("交易成功") && i + 2 < lines.size) {
-                val nextLine = lines[i + 1]
-                if (nextLine.matches(Regex("""\d+\.?\d+"""))) {
-                    return nextLine.toDoubleOrNull()
-                }
-            }
-        }
-
-        return null
-    }
-
-    override fun extractAmount(lines: List<String>, originalAmount: Double?): Double? {
-        val amountRegex = Regex(actualAmountRegex)
-
-        for (line in lines) {
-            val trimmed = normalizeOcrAmountLine(line.trim())
-            if (!trimmed.startsWith("-")) continue
-            val rawValue = extractNumber(amountRegex, trimmed) ?: continue
-            if (Math.abs(rawValue) <= 0) continue
-            return Math.abs(applyDecimalInference(rawValue, trimmed, originalAmount))
-        }
-
-        for (i in lines.indices) {
-            val line = lines[i]
-            val hasKeyword = config.amountKeywords.any { keyword -> line.contains(keyword) }
-            if (!hasKeyword) continue
-            if (config.amountExcludePatterns.any { pattern -> line.contains(pattern) }) continue
-
-            val rawAmountLine = if (extractNumber(amountRegex, line) != null) line
-            else if (i + 1 < lines.size) lines[i + 1]
-            else null
-            if (rawAmountLine == null) continue
-            val amountLine = normalizeOcrAmountLine(rawAmountLine)
-            val rawValue = extractNumber(amountRegex, amountLine) ?: continue
-            return Math.abs(applyDecimalInference(rawValue, amountLine, originalAmount))
-        }
-
-        return null
-    }
-
-    private fun extractNumber(regex: Regex, line: String): Double? {
-        val match = regex.find(line) ?: return null
-        val matched = if (match.groupValues.size > 1) match.groupValues[1] else match.value
-        return matched.replace("¥", "").replace("￥", "").toDoubleOrNull()
-    }
-
-    private fun applyDecimalInference(rawValue: Double, rawLine: String, originalAmount: Double?): Double {
-        val abs = Math.abs(rawValue)
-        if (abs > 1 && originalAmount != null && !rawLine.contains(".")) {
-            return inferDecimalPoint(abs, originalAmount)
-        }
-        return abs
-    }
-
-    override fun extractDiscount(lines: List<String>, originalAmount: Double?): Double? {
-        val datePattern = Regex("""\d{4}[-/]\d{1,2}[-/]\d{1,2}""")
-        val processedIndices = mutableSetOf<Int>()
-        var totalDiscount = 0.0
-        var found = false
-
-        for (i in lines.indices) {
-            if (i in processedIndices) continue
-            val line = lines[i]
-            if (config.discountExcludeKeywords.any { keyword -> line.contains(keyword) }) continue
-
-            val hasKeyword = effectiveDiscountKeywords.any { keyword -> line.contains(keyword) }
-            if (!hasKeyword) continue
-
-            val value = findDiscountAmount(line)
-            if (value != null && Math.abs(value) > 0) {
-                totalDiscount += Math.abs(value)
-                found = true
-                processedIndices.add(i)
-                continue
-            }
-
-            val neighbor = selectDiscountNeighbor(
-                lines, i, effectiveDiscountKeywords, datePattern, originalAmount, processedIndices
-            )
-            if (neighbor != null) {
-                totalDiscount += Math.abs(neighbor.second)
-                found = true
-                processedIndices.add(neighbor.first)
-            }
-        }
-
-        return if (found) Math.round(totalDiscount * 100.0) / 100.0 else null
-    }
-
-    override fun extractStoreName(lines: List<String>): String? {
-        for (line in lines) {
-            if (line.length < 2) continue
-            if (config.storeNameExcludeKeywords.any { keyword -> line.contains(keyword) }) continue
-            if (line.all { it.isDigit() || it == '.' || it == '-' || it == '¥' || it == '￥' || it == ' ' }) continue
-            if (line.matches(Regex("""\d{4}[-/]\d{1,2}[-/]\d{1,2}.*"""))) continue
-            if (line.matches(Regex("""[A-Za-z0-9\s.:-]+""")) && line.length < 15) continue
-            if (line.contains("√") || line.contains(">") || line.contains("¥")) continue
-
-            if (line.contains(Regex("""[\u4e00-\u9fa5]{2,}""")) && !line.contains(Regex("""\d"""))) {
-                return line
-            }
-        }
-        return null
-    }
-
-    override fun paymentTimeRegex(): Regex = Regex(actualPaymentTimeRegex)
+    override fun paymentTimeRegex(): Regex =
+        Regex(RegexPreset.resolveRegex(PresetType.TIME, config.paymentTimePatternPreset, config.paymentTimeRegexCustom))
 
     override fun paymentTimeKeywords(): List<String> =
         (super.paymentTimeKeywords() + config.paymentTimeKeywords).distinct()
 
-    override fun extractPaymentMethod(lines: List<String>): String? {
-        for (i in lines.indices) {
-            if (config.paymentMethodKeywords.any { keyword -> lines[i].contains(keyword) }) {
-                for (j in maxOf(0, i - 3)..minOf(lines.size - 1, i + 3)) {
-                    if (j == i) continue
-                    val line = lines[j]
-                    if (line.contains(Regex(config.paymentMethodValues.joinToString("|") { Regex.escape(it) }))) {
-                        return cleanPaymentMethod(line)
-                    }
-                }
-            }
-        }
+    override fun paymentMethodKeywords(): List<String> = config.paymentMethodKeywords
 
-        val paymentPattern = Regex(config.paymentMethodValues.joinToString("|") { Regex.escape(it) })
-        for (line in lines) {
-            if (line.contains(paymentPattern)) {
-                return cleanPaymentMethod(line)
-            }
-        }
+    override fun paymentMethodValues(): List<String> = config.paymentMethodValues
 
-        return null
-    }
+    override fun orderNumberKeywords(): List<String> = config.orderNumberKeywords
 
-    override fun extractOrderNumber(lines: List<String>): String? {
-        val orderRegex = Regex(actualOrderNumberRegex)
+    override fun orderNumberPattern(): Regex =
+        Regex(RegexPreset.resolveRegex(PresetType.ORDER_NUMBER, config.orderNumberPatternPreset, config.orderNumberRegexCustom))
 
-        for (i in lines.indices) {
-            if (config.orderNumberKeywords.any { keyword -> lines[i].contains(keyword) }) {
-                for (j in maxOf(0, i - 3)..minOf(lines.size - 1, i + 3)) {
-                    if (j == i) continue
-                    val line = lines[j].trim()
-                    val match = orderRegex.find(line)
-                    if (match != null) {
-                        return match.groupValues[1]
-                    }
-                }
-            }
-        }
-
-        for (line in lines) {
-            val trimmed = line.trim()
-            if (trimmed.all { it.isDigit() } && trimmed.length >= 16) {
-                return trimmed
-            }
-        }
-
-        return null
-    }
-
-    override fun extractItems(lines: List<String>): List<ReceiptItem> {
-        val items = mutableListOf<ReceiptItem>()
-        val itemPattern = Regex(actualItemRegex)
-
-        for (line in lines) {
-            val match = itemPattern.find(line)
-            if (match != null) {
-                val name = match.groupValues[1].trim()
-                val price = match.groupValues[2].toDoubleOrNull()
-                val quantity = match.groupValues[3].toIntOrNull()
-                val subtotal = if (price != null && quantity != null) price * quantity else null
-
-                items.add(
-                    ReceiptItem(
-                        name = name,
-                        price = price,
-                        quantity = quantity,
-                        subtotal = subtotal
-                    )
-                )
-            }
-        }
-
-        return items
-    }
+    override fun itemPattern(): Regex =
+        Regex(RegexPreset.resolveRegex(PresetType.ITEM, config.itemPatternPreset, config.itemRegexCustom))
 }

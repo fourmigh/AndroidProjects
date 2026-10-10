@@ -173,12 +173,21 @@ abstract class AppDatabase : RoomDatabase() {
                             val appContext = context.applicationContext
                             CoroutineScope(Dispatchers.IO).launch {
                                 val database = getInstance(appContext)
+                                // 补齐缺失的内置分类（不覆盖用户改名/自定义项）
                                 val categoryDao = database.categoryDao()
-                                if (categoryDao.count() == 0) {
-                                    categoryDao.insertAll(DefaultCategories.toEntities())
+                                val existingCategoryIds = categoryDao.getAll().map { it.id }.toSet()
+                                val missingCategories =
+                                    DefaultCategories.toEntities().filter { it.id !in existingCategoryIds }
+                                if (missingCategories.isNotEmpty()) {
+                                    categoryDao.insertAll(missingCategories)
                                 }
-                                if (database.categoryRuleDao().count() == 0) {
-                                    database.categoryRuleDao().upsertAll(DefaultCategoryRules.toEntities())
+                                // 补齐缺失的内置关键词规则
+                                val categoryRuleDao = database.categoryRuleDao()
+                                val existingRuleIds = categoryRuleDao.getAll().map { it.categoryId }.toSet()
+                                val missingRules =
+                                    DefaultCategoryRules.toEntities().filter { it.categoryId !in existingRuleIds }
+                                if (missingRules.isNotEmpty()) {
+                                    categoryRuleDao.upsertAll(missingRules)
                                 }
                             }
                         }

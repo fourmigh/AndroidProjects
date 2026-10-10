@@ -38,10 +38,50 @@ open class ReceiptParser : DataParser<ReceiptData> {
         )
     }
 
+    // ---- 数据来源（可被 ConfigurableReceiptParser 覆盖）----
+
+    protected open fun originalAmountKeywords(): List<String> =
+        listOf("订单金额", "原价", "原价金额", "商品总价", "总价", "合计金额")
+
+    protected open fun originalAmountPattern(): Regex = Regex("""(\d+\.?\d+)""")
+
+    protected open fun amountKeywords(): List<String> =
+        listOf("实付", "实收", "应付", "支付金额")
+
+    protected open fun amountExcludePatterns(): List<String> =
+        listOf("支付时间", "支付方式")
+
+    protected open fun amountPattern(): Regex = Regex("""(\d+\.?\d*)""")
+
+    protected open fun discountKeywords(): List<String> =
+        listOf("优惠", "尤惠", "减免", "折扣", "立减", "满减", "抵扣", "福利", "财神", "红包", "补贴", "返现")
+
+    protected open fun discountExcludeKeywords(): List<String> =
+        listOf("领", "就可用", "去查看", "推荐", "服务")
+
+    protected open fun storeNameExcludeKeywords(): List<String> =
+        listOf("账单", "详情", "支付", "订单", "交易", "时间", "方式", "说明", "奖励", "收款", "推荐", "服务", "分类", "管理", "贴纸", "解锁")
+
+    protected open fun paymentMethodKeywords(): List<String> =
+        listOf("付款方式", "寸款方式", "支付方式")
+
+    protected open fun paymentMethodValues(): List<String> =
+        listOf("银行卡", "储蓄卡", "信用卡", "花呗", "余额宝", "微信", "支付宝", "网商银行", "微信支付")
+
+    protected open fun orderNumberKeywords(): List<String> =
+        listOf("订单号", "交易号", "流水号")
+
+    protected open fun orderNumberPattern(): Regex = Regex("""(\d{16,})""")
+
+    protected open fun itemPattern(): Regex =
+        Regex("""(.+?)\s+[¥￥]?\s*(\d+\.?\d*)\s*[xX×]\s*(\d+)""")
+
+    // ---- 提取实现 ----
+
     protected open fun extractOriginalAmount(lines: List<String>): Double? {
-        val amountPattern = Regex("""(\d+\.?\d+)""")
+        val amountPattern = originalAmountPattern()
         val currencyPattern = Regex("""[¥￥]\s*(\d+\.?\d*)""")
-        val keywords = listOf("订单金额", "原价", "原价金额", "商品总价", "总价", "合计金额")
+        val keywords = originalAmountKeywords()
 
         for (i in lines.indices) {
             val line = lines[i]
@@ -90,41 +130,48 @@ open class ReceiptParser : DataParser<ReceiptData> {
     }
 
     protected open fun extractAmount(lines: List<String>, originalAmount: Double?): Double? {
+        val amountRegex = amountPattern()
+
         for (line in lines) {
             val trimmed = normalizeOcrAmountLine(line.trim())
             if (!trimmed.startsWith("-")) continue
-            val cleaned = trimmed.replace("¥", "").replace("￥", "")
-            if (cleaned.matches(Regex("""^-?\d+\.?\d*$"""))) {
-                var value = cleaned.toDoubleOrNull()
-                if (value != null && Math.abs(value) > 0) {
-                    if (originalAmount != null && !cleaned.contains(".")) {
-                        value = inferDecimalPoint(Math.abs(value), originalAmount)
-                    }
-                    return Math.abs(value)
-                }
-            }
+            val rawValue = extractNumber(amountRegex, trimmed) ?: continue
+            if (Math.abs(rawValue) <= 0) continue
+            return Math.abs(applyDecimalInference(rawValue, trimmed, originalAmount))
         }
 
-        val keywords = listOf("实付", "实收", "应付", "支付金额")
+        val keywords = amountKeywords()
+        val excludePatterns = amountExcludePatterns()
         for (i in lines.indices) {
             val line = lines[i]
             val hasKeyword = keywords.any { keyword -> line.contains(keyword) }
-            if (hasKeyword) {
-                if (line.contains("支付时间") || line.contains("支付方式")) continue
-                val match = Regex("""(-?\d+\.?\d+)""").find(line)
-                if (match != null) {
-                    return Math.abs(match.groupValues[1].toDoubleOrNull() ?: 0.0)
-                }
-                if (i + 1 < lines.size) {
-                    val nextMatch = Regex("""(-?\d+\.?\d+)""").find(lines[i + 1])
-                    if (nextMatch != null) {
-                        return Math.abs(nextMatch.groupValues[1].toDoubleOrNull() ?: 0.0)
-                    }
-                }
-            }
+            if (!hasKeyword) continue
+            if (excludePatterns.any { pattern -> line.contains(pattern) }) continue
+
+            val rawAmountLine = if (extractNumber(amountRegex, line) != null) line
+            else if (i + 1 < lines.size) lines[i + 1]
+            else null
+            if (rawAmountLine == null) continue
+            val amountLine = normalizeOcrAmountLine(rawAmountLine)
+            val rawValue = extractNumber(amountRegex, amountLine) ?: continue
+            return Math.abs(applyDecimalInference(rawValue, amountLine, originalAmount))
         }
 
         return null
+    }
+
+    protected open fun extractNumber(regex: Regex, line: String): Double? {
+        val match = regex.find(line) ?: return null
+        val matched = if (match.groupValues.size > 1) match.groupValues[1] else match.value
+        return matched.replace("¥", "").replace("￥", "").toDoubleOrNull()
+    }
+
+    protected open fun applyDecimalInference(rawValue: Double, rawLine: String, originalAmount: Double?): Double {
+        val abs = Math.abs(rawValue)
+        if (abs > 1 && originalAmount != null && !rawLine.contains(".")) {
+            return inferDecimalPoint(abs, originalAmount)
+        }
+        return abs
     }
 
     /**
@@ -153,8 +200,8 @@ open class ReceiptParser : DataParser<ReceiptData> {
     }
 
     protected open fun extractDiscount(lines: List<String>, originalAmount: Double?): Double? {
-        val discountKeywords = listOf("优惠", "尤惠", "减免", "折扣", "立减", "满减", "抵扣", "福利", "财神", "红包", "补贴", "返现")
-        val excludeKeywords = listOf("领", "就可用", "去查看", "推荐", "服务")
+        val discountKeywords = discountKeywords()
+        val excludeKeywords = discountExcludeKeywords()
         val datePattern = Regex("""\d{4}[-/]\d{1,2}[-/]\d{1,2}""")
         val processedIndices = mutableSetOf<Int>()
         var totalDiscount = 0.0
@@ -264,7 +311,7 @@ open class ReceiptParser : DataParser<ReceiptData> {
     }
 
     protected open fun extractStoreName(lines: List<String>): String? {
-        val excludeKeywords = listOf("账单", "详情", "支付", "订单", "交易", "时间", "方式", "说明", "奖励", "收款", "推荐", "服务", "分类", "管理", "贴纸", "解锁")
+        val excludeKeywords = storeNameExcludeKeywords()
 
         for (line in lines) {
             if (line.length < 2) continue
@@ -369,12 +416,17 @@ open class ReceiptParser : DataParser<ReceiptData> {
     }
 
     protected open fun extractPaymentMethod(lines: List<String>): String? {
+        val values = paymentMethodValues()
+        if (values.isEmpty()) return null
+        val valuesPattern = Regex(values.joinToString("|") { Regex.escape(it) })
+        val keywords = paymentMethodKeywords()
+
         for (i in lines.indices) {
-            if (lines[i].contains("付款方式") || lines[i].contains("寸款方式") || lines[i].contains("支付方式")) {
+            if (keywords.any { lines[i].contains(it) }) {
                 for (j in maxOf(0, i - 3)..minOf(lines.size - 1, i + 3)) {
                     if (j == i) continue
                     val line = lines[j]
-                    if (line.contains(Regex("""(银行卡|储蓄卡|信用卡|花呗|余额宝|微信|支付宝|网商银行)"""))) {
+                    if (line.contains(valuesPattern)) {
                         return cleanPaymentMethod(line)
                     }
                 }
@@ -382,13 +434,7 @@ open class ReceiptParser : DataParser<ReceiptData> {
         }
 
         for (line in lines) {
-            if (line.contains(Regex("""(储蓄卡|信用卡|花呗|余额宝)"""))) {
-                return cleanPaymentMethod(line)
-            }
-        }
-
-        for (line in lines) {
-            if (line.contains(Regex("""(银行卡|微信支付|支付宝|网商银行)"""))) {
+            if (line.contains(valuesPattern)) {
                 return cleanPaymentMethod(line)
             }
         }
@@ -397,12 +443,15 @@ open class ReceiptParser : DataParser<ReceiptData> {
     }
 
     protected open fun extractOrderNumber(lines: List<String>): String? {
+        val orderRegex = orderNumberPattern()
+        val keywords = orderNumberKeywords()
+
         for (i in lines.indices) {
-            if (lines[i].contains("订单号") || lines[i].contains("交易号") || lines[i].contains("流水号")) {
+            if (keywords.any { lines[i].contains(it) }) {
                 for (j in maxOf(0, i - 3)..minOf(lines.size - 1, i + 3)) {
                     if (j == i) continue
                     val line = lines[j].trim()
-                    val match = Regex("""(\d{16,})""").find(line)
+                    val match = orderRegex.find(line)
                     if (match != null) {
                         return match.groupValues[1]
                     }
@@ -422,7 +471,7 @@ open class ReceiptParser : DataParser<ReceiptData> {
 
     protected open fun extractItems(lines: List<String>): List<ReceiptItem> {
         val items = mutableListOf<ReceiptItem>()
-        val itemPattern = Regex("""(.+?)\s+[¥￥]?\s*(\d+\.?\d*)\s*[xX×]\s*(\d+)""")
+        val itemPattern = itemPattern()
 
         for (line in lines) {
             val match = itemPattern.find(line)

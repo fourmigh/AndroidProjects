@@ -7,20 +7,31 @@
     <string name="category_health">Health &amp; Medical</string>
     <string name="category_entertainment">Entertainment</string>
     <string name="category_growth">Personal Growth</string>
+    <string name="category_digital_services">Digital Services</string>
 
     <!-- Built-in category names: sub-categories -->
     <string name="category_life_utility">Utilities</string>
     <string name="category_life_rent">Rent &amp; Deposit</string>
     <string name="category_life_property">Property Fee</string>
     <string name="category_life_telecom">Internet &amp; Phone</string>
+    <string name="category_life_beauty">Beauty &amp; Hair</string>
+    <string name="category_life_errand">Errand</string>
+    <string name="category_life_housekeeping">Housekeeping</string>
+    <string name="category_life_repair">Repair</string>
+    <string name="category_life_laundry">Laundry</string>
+    <string name="category_life_moving">Moving</string>
     <string name="category_shopping_online">Online Shopping</string>
     <string name="category_shopping_retail">In-store Retail</string>
     <string name="category_shopping_grocery">Groceries</string>
     <string name="category_shopping_fuel">Fuel</string>
+    <string name="category_shopping_clothing">Clothing</string>
+    <string name="category_shopping_daily">Daily Necessities</string>
+    <string name="category_shopping_digital">Digital &amp; Appliances</string>
     <string name="category_transport_public">Public Transit</string>
     <string name="category_transport_taxi">Rideshare &amp; Taxi</string>
     <string name="category_transport_maintenance">Vehicle Maintenance</string>
     <string name="category_transport_parking">Parking</string>
+    <string name="category_transport_travel">Travel &amp; Hotel</string>
     <string name="category_health_hospital">Hospital Visit</string>
     <string name="category_health_pharmacy">Pharmacy</string>
     <string name="category_health_dental">Dental &amp; Vision</string>
@@ -29,9 +40,14 @@
     <string name="category_entertainment_movie">Movies &amp; Shows</string>
     <string name="category_entertainment_game">Games &amp; Subscriptions</string>
     <string name="category_entertainment_fitness">Fitness</string>
+    <string name="category_entertainment_parenting">Parenting</string>
     <string name="category_growth_education">Education &amp; Training</string>
     <string name="category_growth_book">Books &amp; Learning</string>
     <string name="category_growth_finance">Investments</string>
+    <string name="category_digital_services_ai">AI Services</string>
+    <string name="category_digital_services_software">Software Subscriptions</string>
+    <string name="category_digital_services_cloud">Cloud Services</string>
+    <string name="category_digital_services_membership">Memberships &amp; Top-up</string>
 
     <!-- Built-in category names: fallback -->
     <string name="category_uncategorized">Uncategorized</string>

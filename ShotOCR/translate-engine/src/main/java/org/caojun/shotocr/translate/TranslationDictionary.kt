@@ -48,6 +48,24 @@ object TranslationDictionary {
         "教育培训" to "Education & Training",
         "图书/学习" to "Books & Learning",
         "理财投资" to "Investments",
+        // 新增大类
+        "数字服务" to "Digital Services",
+        // 新增子类
+        "美容美发" to "Beauty & Hair",
+        "跑腿代办" to "Errand",
+        "家政" to "Housekeeping",
+        "维修" to "Repair",
+        "洗衣" to "Laundry",
+        "搬家" to "Moving",
+        "服饰装扮" to "Clothing",
+        "日用百货" to "Daily Necessities",
+        "数码电器" to "Digital & Appliances",
+        "酒店旅行" to "Travel & Hotel",
+        "亲子" to "Parenting",
+        "AI 服务" to "AI Services",
+        "软件订阅" to "Software Subscriptions",
+        "云服务" to "Cloud Services",
+        "会员充值" to "Memberships & Top-up",
         // 兜底
         "未分类" to "Uncategorized"
     )

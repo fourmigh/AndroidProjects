@@ -37,4 +37,8 @@
     <string name="category_keywords_entry">Keywords</string>
     <string name="category_keywords_label">Keywords (one per line)</string>
     <string name="category_keywords_hint">A match on any keyword maps the bill to this category</string>
+
+    <!-- Search -->
+    <string name="category_search_hint">Search categories</string>
+    <string name="category_search_threshold">Similarity threshold</string>
 </resources>

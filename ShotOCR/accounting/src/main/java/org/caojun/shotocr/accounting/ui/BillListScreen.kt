@@ -204,7 +204,7 @@ private fun WeekSummaryRow(
     onClick: () -> Unit
 ) {
     SummaryCard(
-        title = week.label,
+        title = stringResource(R.string.week_number, week.weekNumber) + " " + week.label,
         subtitle = "",
         totals = week.totals,
         expanded = expanded,

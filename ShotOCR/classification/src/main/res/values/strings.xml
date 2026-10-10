@@ -37,4 +37,8 @@
     <string name="category_keywords_entry">关键词</string>
     <string name="category_keywords_label">关键词（每行一个）</string>
     <string name="category_keywords_hint">命中任一关键词即归入该分类</string>
+
+    <!-- 搜索 -->
+    <string name="category_search_hint">搜索分类</string>
+    <string name="category_search_threshold">相似度阈值</string>
 </resources>

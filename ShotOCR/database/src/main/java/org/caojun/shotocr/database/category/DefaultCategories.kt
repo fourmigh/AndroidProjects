@@ -27,7 +27,13 @@ object DefaultCategories {
                 "utility" to R.string.category_life_utility,
                 "rent" to R.string.category_life_rent,
                 "property" to R.string.category_life_property,
-                "telecom" to R.string.category_life_telecom
+                "telecom" to R.string.category_life_telecom,
+                "beauty" to R.string.category_life_beauty,
+                "errand" to R.string.category_life_errand,
+                "housekeeping" to R.string.category_life_housekeeping,
+                "repair" to R.string.category_life_repair,
+                "laundry" to R.string.category_life_laundry,
+                "moving" to R.string.category_life_moving
             )
         ),
         Group(
@@ -37,7 +43,10 @@ object DefaultCategories {
                 "online" to R.string.category_shopping_online,
                 "retail" to R.string.category_shopping_retail,
                 "grocery" to R.string.category_shopping_grocery,
-                "fuel" to R.string.category_shopping_fuel
+                "fuel" to R.string.category_shopping_fuel,
+                "clothing" to R.string.category_shopping_clothing,
+                "daily" to R.string.category_shopping_daily,
+                "digital" to R.string.category_shopping_digital
             )
         ),
         Group(
@@ -47,7 +56,8 @@ object DefaultCategories {
                 "public" to R.string.category_transport_public,
                 "taxi" to R.string.category_transport_taxi,
                 "maintenance" to R.string.category_transport_maintenance,
-                "parking" to R.string.category_transport_parking
+                "parking" to R.string.category_transport_parking,
+                "travel" to R.string.category_transport_travel
             )
         ),
         Group(
@@ -67,7 +77,8 @@ object DefaultCategories {
                 "dining" to R.string.category_entertainment_dining,
                 "movie" to R.string.category_entertainment_movie,
                 "game" to R.string.category_entertainment_game,
-                "fitness" to R.string.category_entertainment_fitness
+                "fitness" to R.string.category_entertainment_fitness,
+                "parenting" to R.string.category_entertainment_parenting
             )
         ),
         Group(
@@ -77,6 +88,16 @@ object DefaultCategories {
                 "education" to R.string.category_growth_education,
                 "book" to R.string.category_growth_book,
                 "finance" to R.string.category_growth_finance
+            )
+        ),
+        Group(
+            id = "digital_services",
+            nameRes = R.string.category_digital_services,
+            children = listOf(
+                "ai" to R.string.category_digital_services_ai,
+                "software" to R.string.category_digital_services_software,
+                "cloud" to R.string.category_digital_services_cloud,
+                "membership" to R.string.category_digital_services_membership
             )
         )
     )
