@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -27,11 +28,13 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -52,6 +55,8 @@ import org.caojun.shotocr.classification.model.CategoryGroup
 import org.caojun.shotocr.classification.model.buildNames
 import org.caojun.shotocr.classification.model.toGroups
 import org.caojun.shotocr.classification.repository.CategoryRepository
+import org.caojun.shotocr.classification.repository.CategoryRuleRepository
+import org.caojun.shotocr.database.category.DefaultCategoryRules
 import org.caojun.shotocr.translate.ui.TranslatableI18nFields
 import java.util.Locale
 
@@ -72,6 +77,7 @@ fun CategoryManagementScreen(
     var addingSubTo by remember { mutableStateOf<Category?>(null) }
     var showAddTopDialog by remember { mutableStateOf(false) }
     var deleteBlockedNotice by remember { mutableStateOf<Category?>(null) }
+    var editingKeywords by remember { mutableStateOf<Category?>(null) }
 
     Scaffold(
         topBar = {
@@ -122,6 +128,7 @@ fun CategoryManagementScreen(
                         },
                         onAddChild = { addingSubTo = group.category },
                         onRename = { editing = EditingTarget(it) },
+                        onEditKeywords = { editingKeywords = it },
                         onDelete = { category ->
                             val hasChildren = groups
                                 .firstOrNull { it.category.id == category.id }
@@ -209,6 +216,13 @@ fun CategoryManagementScreen(
             onDismiss = { editing = null }
         )
     }
+
+    editingKeywords?.let { category ->
+        CategoryKeywordsDialog(
+            category = category,
+            onDismiss = { editingKeywords = null }
+        )
+    }
 }
 
 private data class EditingTarget(val category: Category)
@@ -220,6 +234,7 @@ private fun CategoryGroupCard(
     onToggleExpand: () -> Unit,
     onAddChild: () -> Unit,
     onRename: (Category) -> Unit,
+    onEditKeywords: (Category) -> Unit,
     onDelete: (Category) -> Unit
 ) {
     Card(
@@ -289,6 +304,13 @@ private fun CategoryGroupCard(
                                 style = MaterialTheme.typography.bodyMedium,
                                 modifier = Modifier.weight(1f)
                             )
+                            IconButton(onClick = { onEditKeywords(child) }) {
+                                Icon(
+                                    imageVector = Icons.Filled.Search,
+                                    contentDescription = stringResource(R.string.category_keywords_entry),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
                             IconButton(onClick = { onRename(child) }) {
                                 Icon(
                                     imageVector = Icons.Filled.Edit,
@@ -362,6 +384,80 @@ fun CategoryI18nDialog(
             Row {
                 if (onRestoreDefault != null) {
                     TextButton(onClick = onRestoreDefault) {
+                        Text(stringResource(R.string.category_restore_default))
+                    }
+                }
+                TextButton(onClick = onDismiss) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            }
+        }
+    )
+}
+
+/**
+ * 分类关键词规则编辑对话框。多行文本，每行一个关键词。
+ * 内置分类提供「恢复默认」。
+ */
+@Composable
+private fun CategoryKeywordsDialog(
+    category: Category,
+    onDismiss: () -> Unit
+) {
+    val scope = rememberCoroutineScope()
+    var text by remember { mutableStateOf("") }
+    var canRestore by remember { mutableStateOf(false) }
+
+    LaunchedEffect(category.id) {
+        val rule = CategoryRuleRepository.getByCategory(category.id)
+        text = rule?.keywords?.joinToString("\n")
+            ?: DefaultCategoryRules.keywordsFor(category.id)?.joinToString("\n")
+            ?: ""
+        canRestore = DefaultCategoryRules.keywordsFor(category.id) != null
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(stringResource(R.string.category_keywords_title) + " · " + category.displayName())
+        },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    label = { Text(stringResource(R.string.category_keywords_label)) },
+                    minLines = 4,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Text(
+                    text = stringResource(R.string.category_keywords_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.outline,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                val keywords = text.lines().map { it.trim() }.filter { it.isNotEmpty() }
+                scope.launch {
+                    CategoryRuleRepository.upsert(category.id, keywords)
+                    onDismiss()
+                }
+            }) {
+                Text(stringResource(R.string.action_confirm))
+            }
+        },
+        dismissButton = {
+            Row {
+                if (canRestore) {
+                    TextButton(onClick = {
+                        scope.launch {
+                            CategoryRuleRepository.restoreDefault(category.id)
+                            onDismiss()
+                        }
+                    }) {
                         Text(stringResource(R.string.category_restore_default))
                     }
                 }

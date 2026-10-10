@@ -351,4 +351,59 @@ class ReceiptParserTest {
         assertEquals(9.6, result.amount!!, 0.001)
         assertEquals(0.4, result.discount!!, 0.001)
     }
+
+    private val smallAmountOcrDashText = """
+        日泪64
+        14:19:42144
+        账单详情
+        车迪管理(苏州)有限公司
+        -0-99
+        交易成功
+        1.00
+        订单金额
+        -0.01
+        网商银行福利
+        金抵扣
+        2026-10-0907:04:06
+        支付时间
+        付款方式
+        网商银行储蓄卡(3841)>
+        小黄油美式（共1件）
+        商品说明
+        已领取2积分>
+        支付奖励
+        库迪管理(苏州)有限公司
+        收款方全称
+        推荐服务
+        领银行卡立减金，支付就可用
+        去查看>
+        订单号
+        2026100923001465011450406928
+        48874106644463617
+        商家订单号
+        账单管理
+        已解锁"咖啡奶茶"贴纸，去兑换好礼
+        餐饮美食>
+        账单分类
+        标签
+        请选择>
+    """.trimIndent()
+
+    @Test
+    fun basicParser_smallAmountWithOcrDash_parsesAmount() {
+        val result = ReceiptParser().parse(smallAmountOcrDashText)
+
+        assertEquals(1.0, result.originalAmount!!, 0.001)
+        assertEquals(0.01, result.discount!!, 0.001)
+        assertEquals(0.99, result.amount!!, 0.001)
+    }
+
+    @Test
+    fun configurableParser_smallAmountWithOcrDash_parsesAmount() {
+        val result = ConfigurableReceiptParser(ReceiptParseConfig.default()).parse(smallAmountOcrDashText)
+
+        assertEquals(1.0, result.originalAmount!!, 0.001)
+        assertEquals(0.01, result.discount!!, 0.001)
+        assertEquals(0.99, result.amount!!, 0.001)
+    }
 }

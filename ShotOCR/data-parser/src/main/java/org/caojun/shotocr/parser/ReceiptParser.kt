@@ -12,8 +12,12 @@ open class ReceiptParser : DataParser<ReceiptData> {
         val lines = text.lines().map { it.trim() }.filter { it.isNotEmpty() }
 
         val originalAmount = extractOriginalAmount(lines)
-        val amount = extractAmount(lines, originalAmount)
+        var amount = extractAmount(lines, originalAmount)
         val discount = extractDiscount(lines, originalAmount)
+        if (amount == null && originalAmount != null && discount != null) {
+            val inferred = originalAmount - discount
+            if (inferred > 0) amount = inferred
+        }
         val storeName = extractStoreName(lines)
         val paymentTime = extractPaymentTime(lines)
         val paymentMethod = extractPaymentMethod(lines)
@@ -92,7 +96,7 @@ open class ReceiptParser : DataParser<ReceiptData> {
             val cleaned = trimmed.replace("¥", "").replace("￥", "")
             if (cleaned.matches(Regex("""^-?\d+\.?\d*$"""))) {
                 var value = cleaned.toDoubleOrNull()
-                if (value != null && Math.abs(value) > 1) {
+                if (value != null && Math.abs(value) > 0) {
                     if (originalAmount != null && !cleaned.contains(".")) {
                         value = inferDecimalPoint(Math.abs(value), originalAmount)
                     }

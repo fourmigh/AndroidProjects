@@ -31,4 +31,10 @@
     <!-- 展开收起 -->
     <string name="category_expand">展开</string>
     <string name="category_collapse">收起</string>
+
+    <!-- 关键词规则 -->
+    <string name="category_keywords_title">关键词规则</string>
+    <string name="category_keywords_entry">关键词</string>
+    <string name="category_keywords_label">关键词（每行一个）</string>
+    <string name="category_keywords_hint">命中任一关键词即归入该分类</string>
 </resources>

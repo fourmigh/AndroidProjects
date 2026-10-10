@@ -9,6 +9,14 @@
     <string name="instruction_2">2. Take a screenshot on the bill detail page in Alipay or other apps</string>
     <string name="instruction_3">3. The app will automatically recognize bill amounts and items</string>
     <string name="instruction_4">4. Confirm the information and save the accounting record</string>
+    <string name="principle_title">How It Works</string>
+    <string name="principle_expand">Expand</string>
+    <string name="principle_collapse">Collapse</string>
+    <string name="principle_point_1">1. Fully offline: recognition and translation happen on your phone — nothing is uploaded and no network is needed.</string>
+    <string name="principle_point_2">2. Text recognition (OCR): uses the PP-OCRv6 AI model to read text from your screenshot.</string>
+    <string name="principle_point_3">3. It extracts the amount, merchant, time and other details for you.</string>
+    <string name="principle_point_4">4. It suggests the bill category based on the merchant and items.</string>
+    <string name="principle_point_5">5. Offline translation: Chinese-English translation of category names uses the OPUS-MT (Marian) AI model on your device.</string>
     <string name="permission_required_title">Permission Required</string>
     <string name="permission_required_desc">Storage permission is needed to read screenshot images. Please grant the permission to enable screenshot monitoring.</string>
     <string name="grant_permission">Grant Permission</string>

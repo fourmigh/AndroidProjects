@@ -3,6 +3,7 @@ package org.caojun.shotocr.accounting.ui
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.graphics.Bitmap
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
@@ -42,7 +43,8 @@ fun ConfirmScreen(
     onSaved: (EditableReceipt) -> Unit = {},
     onCancel: () -> Unit = {},
     onDeleteScreenshot: () -> Unit = {},
-    askDeleteOnCancel: Boolean = false
+    askDeleteOnCancel: Boolean = false,
+    autoSuggestedCategoryId: String? = null
 ) {
     var amount by remember { mutableStateOf(receipt.amount) }
     var discount by remember { mutableStateOf(receipt.discount) }
@@ -62,6 +64,10 @@ fun ConfirmScreen(
     val clipboardManager = LocalClipboardManager.current
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+
+    BackHandler(enabled = !showCancelDialog) {
+        if (askDeleteOnCancel) showCancelDialog = true else onCancel()
+    }
 
     if (showCancelDialog) {
         AlertDialog(
@@ -355,6 +361,14 @@ fun ConfirmScreen(
                     .padding(bottom = 16.dp)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
+                    if (autoSuggestedCategoryId != null && categoryId == autoSuggestedCategoryId) {
+                        Text(
+                            text = stringResource(org.caojun.shotocr.accounting.R.string.category_auto_suggested),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        )
+                    }
                     CategorySelectField(
                         categoryId = categoryId,
                         onCategorySelected = { categoryId = it }

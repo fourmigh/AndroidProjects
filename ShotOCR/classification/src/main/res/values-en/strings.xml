@@ -31,4 +31,10 @@
     <!-- Expand / collapse -->
     <string name="category_expand">Expand</string>
     <string name="category_collapse">Collapse</string>
+
+    <!-- Keyword rules -->
+    <string name="category_keywords_title">Keyword Rules</string>
+    <string name="category_keywords_entry">Keywords</string>
+    <string name="category_keywords_label">Keywords (one per line)</string>
+    <string name="category_keywords_hint">A match on any keyword maps the bill to this category</string>
 </resources>

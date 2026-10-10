@@ -54,4 +54,5 @@
     <string name="cancel_delete_screenshot_message">该账单未保存，是否删除这张截图？</string>
     <string name="delete_screenshot">删除截图</string>
     <string name="keep_screenshot">保留截图</string>
+    <string name="category_auto_suggested">自动推荐</string>
 </resources>

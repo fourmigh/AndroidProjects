@@ -49,4 +49,5 @@
     <string name="cancel_delete_screenshot_message">This receipt is not saved. Delete this screenshot?</string>
     <string name="delete_screenshot">Delete screenshot</string>
     <string name="keep_screenshot">Keep screenshot</string>
+    <string name="category_auto_suggested">Auto-suggested</string>
 </resources>

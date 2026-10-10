@@ -121,9 +121,10 @@ fun CategoryPickerSheet(
                 item(key = "group-${group.category.id}") {
                     Text(
                         text = group.category.displayName(),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.outline,
-                        modifier = Modifier.padding(top = 12.dp, bottom = 4.dp)
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(top = 16.dp, bottom = 6.dp)
                     )
                 }
                 items(group.children, key = { it.id }) { child ->
@@ -151,7 +152,7 @@ private fun CategoryPickerRow(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(vertical = 14.dp),
+            .padding(start = 20.dp, top = 14.dp, bottom = 14.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {

@@ -83,7 +83,7 @@ class ConfigurableReceiptParser(
             val trimmed = normalizeOcrAmountLine(line.trim())
             if (!trimmed.startsWith("-")) continue
             val rawValue = extractNumber(amountRegex, trimmed) ?: continue
-            if (Math.abs(rawValue) <= 1) continue
+            if (Math.abs(rawValue) <= 0) continue
             return Math.abs(applyDecimalInference(rawValue, trimmed, originalAmount))
         }
 

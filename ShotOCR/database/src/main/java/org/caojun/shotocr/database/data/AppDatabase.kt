@@ -10,16 +10,18 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.caojun.shotocr.database.category.DefaultCategories
+import org.caojun.shotocr.database.category.DefaultCategoryRules
 import org.caojun.shotocr.parser.ReceiptParseConfig
 
 @Database(
-    entities = [ReceiptEntity::class, ParserConfigEntity::class, CategoryEntity::class],
-    version = 9
+    entities = [ReceiptEntity::class, ParserConfigEntity::class, CategoryEntity::class, CategoryRuleEntity::class],
+    version = 10
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun receiptDao(): ReceiptDao
     abstract fun parserConfigDao(): ParserConfigDao
     abstract fun categoryDao(): CategoryDao
+    abstract fun categoryRuleDao(): CategoryRuleDao
 
     companion object {
         @Volatile
@@ -115,6 +117,20 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS category_rules (
+                        categoryId TEXT NOT NULL,
+                        keywordsJson TEXT NOT NULL,
+                        isDefault INTEGER NOT NULL DEFAULT 0,
+                        updatedAt INTEGER NOT NULL DEFAULT 0,
+                        PRIMARY KEY(categoryId)
+                    )
+                """.trimIndent())
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 Room.databaseBuilder(
@@ -130,7 +146,8 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_5_6,
                         MIGRATION_6_7,
                         MIGRATION_7_8,
-                        MIGRATION_8_9
+                        MIGRATION_8_9,
+                        MIGRATION_9_10
                     )
                     .addCallback(object : Callback() {
                         override fun onCreate(db: SupportSQLiteDatabase) {
@@ -145,6 +162,9 @@ abstract class AppDatabase : RoomDatabase() {
                                 if (database.categoryDao().count() == 0) {
                                     database.categoryDao().insertAll(DefaultCategories.toEntities())
                                 }
+                                if (database.categoryRuleDao().count() == 0) {
+                                    database.categoryRuleDao().upsertAll(DefaultCategoryRules.toEntities())
+                                }
                             }
                         }
 
@@ -152,9 +172,13 @@ abstract class AppDatabase : RoomDatabase() {
                             super.onOpen(db)
                             val appContext = context.applicationContext
                             CoroutineScope(Dispatchers.IO).launch {
-                                val categoryDao = getInstance(appContext).categoryDao()
+                                val database = getInstance(appContext)
+                                val categoryDao = database.categoryDao()
                                 if (categoryDao.count() == 0) {
                                     categoryDao.insertAll(DefaultCategories.toEntities())
+                                }
+                                if (database.categoryRuleDao().count() == 0) {
+                                    database.categoryRuleDao().upsertAll(DefaultCategoryRules.toEntities())
                                 }
                             }
                         }

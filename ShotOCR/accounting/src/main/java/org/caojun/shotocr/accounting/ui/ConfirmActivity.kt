@@ -20,6 +20,8 @@ import org.caojun.shotocr.accounting.AccountingManager
 import org.caojun.shotocr.accounting.EditableReceipt
 import org.caojun.shotocr.accounting.EditableReceiptItem
 import org.caojun.shotocr.classification.repository.CategoryRepository
+import org.caojun.shotocr.classification.repository.CategoryRuleRepository
+import org.caojun.shotocr.classification.classifier.CategoryClassifier
 import java.io.ByteArrayOutputStream
 
 class ConfirmActivity : ComponentActivity() {
@@ -53,6 +55,7 @@ class ConfirmActivity : ComponentActivity() {
         }
 
         CategoryRepository.init(this)
+        CategoryRuleRepository.init(this)
 
         val receiptId = intent.getLongExtra("receipt_id", -1)
         val uriString = intent.getStringExtra("screenshot_uri") ?: ""
@@ -132,6 +135,8 @@ class ConfirmActivity : ComponentActivity() {
                 compressImage(screenshotUri)
             } else null
 
+            val suggestedCategoryId = CategoryClassifier.suggest(storeName, names, rawText)
+
             val receipt = EditableReceipt(
                 screenshotUri = screenshotUri,
                 screenshotImage = screenshotImage,
@@ -144,7 +149,8 @@ class ConfirmActivity : ComponentActivity() {
                 paymentMethod = paymentMethod,
                 orderNumber = orderNumber,
                 items = items,
-                sourceApp = sourceApp
+                sourceApp = sourceApp,
+                categoryId = suggestedCategoryId ?: EditableReceipt.DEFAULT_CATEGORY_ID
             )
 
             setContent {
@@ -154,7 +160,8 @@ class ConfirmActivity : ComponentActivity() {
                         onSaved = { savedReceipt -> handleSave(savedReceipt) },
                         onCancel = { finish() },
                         onDeleteScreenshot = { deleteScreenshot(receipt.screenshotUri) },
-                        askDeleteOnCancel = receipt.screenshotUri != Uri.EMPTY
+                        askDeleteOnCancel = receipt.screenshotUri != Uri.EMPTY,
+                        autoSuggestedCategoryId = suggestedCategoryId
                     )
                 }
             }
