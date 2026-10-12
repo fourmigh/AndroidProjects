@@ -52,6 +52,8 @@
     <string name="accounting_test_title">记账测试</string>
     <string name="cancel_delete_screenshot_title">删除截图？</string>
     <string name="cancel_delete_screenshot_message">该账单未保存，是否删除这张截图？</string>
+    <string name="duplicate_delete_screenshot_title">删除本次截图？</string>
+    <string name="duplicate_delete_screenshot_message">该账单已识别过，是否删除本次截图？</string>
     <string name="delete_screenshot">删除截图</string>
     <string name="keep_screenshot">保留截图</string>
     <string name="category_auto_suggested">自动推荐</string>

@@ -15,7 +15,7 @@ object DefaultCategoryRules {
     val rules: List<Rule> = listOf(
         Rule(
             "entertainment.dining",
-            listOf("肯德基", "KFC", "麦当劳", "星巴克", "餐厅", "饭店", "咖啡", "奶茶", "外卖", "饿了么", "美团外卖", "海底捞", "必胜客", "汉堡", "火锅", "烧烤", "快餐")
+            listOf("肯德基", "KFC", "麦当劳", "星巴克", "餐厅", "饭店", "咖啡", "奶茶", "外卖", "饿了么", "美团外卖", "海底捞", "必胜客", "汉堡", "火锅", "烧烤", "快餐", "餐饮")
         ),
         Rule(
             "entertainment.movie",
@@ -32,6 +32,10 @@ object DefaultCategoryRules {
         Rule(
             "transport.public",
             listOf("地铁", "公交", "公共交通", "乘车", "出行", "一卡通", "轨道交通", "轮渡")
+        ),
+        Rule(
+            "transport.bike",
+            listOf("共享单车", "单车", "骑行", "哈啰", "青桔", "美团单车", "摩拜", "小蓝", "电单车", "助力车")
         ),
         Rule(
             "transport.taxi",
@@ -171,11 +175,16 @@ object DefaultCategoryRules {
     fun keywordsFor(categoryId: String): List<String>? =
         rules.firstOrNull { it.categoryId == categoryId }?.keywords
 
-    fun toEntities(): List<CategoryRuleEntity> = rules.map { rule ->
+    /** categoryId → 内置匹配优先级（即 [rules] 的定义顺序）；自定义分类返回 null。 */
+    fun priorityFor(categoryId: String): Int? =
+        rules.indexOfFirst { it.categoryId == categoryId }.takeIf { it >= 0 }
+
+    fun toEntities(): List<CategoryRuleEntity> = rules.mapIndexed { index, rule ->
         CategoryRuleEntity(
             categoryId = rule.categoryId,
             keywordsJson = toJson(rule.keywords),
-            isDefault = true
+            isDefault = true,
+            priority = index
         )
     }
 

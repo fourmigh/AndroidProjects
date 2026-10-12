@@ -32,6 +32,7 @@ class ConfirmActivity : ComponentActivity() {
     }
 
     private var pendingDeleteUri: Uri? = null
+    private var deleteFinishesActivity = true
 
     private val deleteLauncher = registerForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult()
@@ -42,22 +43,28 @@ class ConfirmActivity : ComponentActivity() {
             Log.d(TAG, "Screenshot deletion cancelled or failed")
         }
         pendingDeleteUri = null
-        finish()
+        if (deleteFinishesActivity) finish()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        CategoryRepository.init(this)
+        CategoryRuleRepository.init(this)
+
         val deleteUri = intent.getStringExtra("delete_screenshot_uri")
+        val receiptId = intent.getLongExtra("receipt_id", -1)
+
+        if (receiptId > 0) {
+            loadExistingReceipt(receiptId, deleteUri?.takeIf { it.isNotEmpty() })
+            return
+        }
+
         if (!deleteUri.isNullOrEmpty()) {
             deleteScreenshot(Uri.parse(deleteUri))
             return
         }
 
-        CategoryRepository.init(this)
-        CategoryRuleRepository.init(this)
-
-        val receiptId = intent.getLongExtra("receipt_id", -1)
         val uriString = intent.getStringExtra("screenshot_uri") ?: ""
         val rawText = intent.getStringExtra("raw_text") ?: ""
         val amount = intent.getStringExtra("amount") ?: ""
@@ -73,33 +80,38 @@ class ConfirmActivity : ComponentActivity() {
         val prices = intent.getStringArrayListExtra("item_prices") ?: arrayListOf()
         val quantities = intent.getStringArrayListExtra("item_quantities") ?: arrayListOf()
 
-        if (receiptId > 0) {
-            loadExistingReceipt(receiptId)
-        } else {
-            loadNewReceipt(
-                uriString, rawText, amount, discount, originalAmount,
-                storeName, paymentTime, paymentMethod, orderNumber, sourceApp,
-                names, prices, quantities
-            )
-        }
+        loadNewReceipt(
+            uriString, rawText, amount, discount, originalAmount,
+            storeName, paymentTime, paymentMethod, orderNumber, sourceApp,
+            names, prices, quantities
+        )
     }
 
-    private fun loadExistingReceipt(receiptId: Long) {
+    private fun loadExistingReceipt(receiptId: Long, duplicateScreenshotUri: String?) {
         lifecycleScope.launch {
             val receipt = AccountingManager.getById(receiptId)
             if (receipt != null) {
+                val deleteUri = duplicateScreenshotUri?.let { Uri.parse(it) }
                 setContent {
                     MaterialTheme {
                         ConfirmScreen(
                             receipt = receipt,
                             onSaved = { savedReceipt -> handleSave(savedReceipt) },
-                            onCancel = { finish() }
+                            onCancel = { finish() },
+                            onDeleteScreenshot = {
+                                deleteUri?.let { deleteScreenshot(it, finishAfter = false) }
+                            },
+                            initialDeleteScreenshot = deleteUri != null
                         )
                     }
                 }
             } else {
                 Log.e(TAG, "Receipt not found: $receiptId")
-                finish()
+                if (!duplicateScreenshotUri.isNullOrEmpty()) {
+                    deleteScreenshot(Uri.parse(duplicateScreenshotUri))
+                } else {
+                    finish()
+                }
             }
         }
     }
@@ -184,7 +196,7 @@ class ConfirmActivity : ComponentActivity() {
         }
     }
 
-    private fun deleteScreenshot(screenshotUri: Uri) {
+    private fun deleteScreenshot(screenshotUri: Uri, finishAfter: Boolean = true) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             try {
                 val pendingIntent = MediaStore.createDeleteRequest(
@@ -192,12 +204,13 @@ class ConfirmActivity : ComponentActivity() {
                     listOf(screenshotUri)
                 )
                 pendingDeleteUri = screenshotUri
+                deleteFinishesActivity = finishAfter
                 deleteLauncher.launch(
                     IntentSenderRequest.Builder(pendingIntent.intentSender).build()
                 )
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to create delete request", e)
-                finish()
+                if (finishAfter) finish()
             }
         } else {
             try {
@@ -205,7 +218,7 @@ class ConfirmActivity : ComponentActivity() {
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to delete screenshot", e)
             }
-            finish()
+            if (finishAfter) finish()
         }
     }
 

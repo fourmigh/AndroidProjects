@@ -31,7 +31,7 @@
     <string name="confirm_channel_name">截图确认</string>
     <string name="confirm_channel_desc">截图识别完成后自动弹出确认界面</string>
     <string name="screenshot_recognized">识别完成，请确认</string>
-    <string name="duplicate_receipt_notification">该账单已识别过，点击删除截图</string>
+    <string name="duplicate_receipt_notification">该账单已识别过，点击查看账单</string>
     <string name="error_load_screenshot">加载截图失败，文件可能仍在处理中</string>
     <string name="error_occurred">发生错误：%1$s</string>
     <string name="view_records">查看账单记录</string>

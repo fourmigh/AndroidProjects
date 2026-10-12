@@ -54,6 +54,7 @@ object DefaultCategories {
             nameRes = R.string.category_transport,
             children = listOf(
                 "public" to R.string.category_transport_public,
+                "bike" to R.string.category_transport_bike,
                 "taxi" to R.string.category_transport_taxi,
                 "maintenance" to R.string.category_transport_maintenance,
                 "parking" to R.string.category_transport_parking,

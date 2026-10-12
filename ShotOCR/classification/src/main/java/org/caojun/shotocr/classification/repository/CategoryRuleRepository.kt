@@ -60,11 +60,14 @@ object CategoryRuleRepository {
         dao?.getByCategory(categoryId)?.let { toRule(it) }
 
     suspend fun upsert(categoryId: String, keywords: List<String>) {
-        dao?.upsert(
+        val target = dao ?: return
+        val priority = resolvePriority(target, categoryId)
+        target.upsert(
             CategoryRuleEntity(
                 categoryId = categoryId,
                 keywordsJson = keywordsToJson(keywords),
-                isDefault = false
+                isDefault = false,
+                priority = priority
             )
         )
     }
@@ -72,13 +75,22 @@ object CategoryRuleRepository {
     /** 恢复为内置默认关键词（仅内置分类有效）。 */
     suspend fun restoreDefault(categoryId: String) {
         val defaults = DefaultCategoryRules.keywordsFor(categoryId) ?: return
-        dao?.upsert(
+        val target = dao ?: return
+        target.upsert(
             CategoryRuleEntity(
                 categoryId = categoryId,
                 keywordsJson = keywordsToJson(defaults),
-                isDefault = true
+                isDefault = true,
+                priority = resolvePriority(target, categoryId)
             )
         )
+    }
+
+    /** 优先级：已有记录沿用；否则取内置定义顺序；自定义分类排在内置之后。 */
+    private suspend fun resolvePriority(dao: CategoryRuleDao, categoryId: String): Int {
+        dao.getByCategory(categoryId)?.let { return it.priority }
+        DefaultCategoryRules.priorityFor(categoryId)?.let { return it }
+        return (dao.maxPriority() ?: 0) + 1
     }
 
     private fun toRule(entity: CategoryRuleEntity): CategoryRule =

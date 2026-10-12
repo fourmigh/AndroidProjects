@@ -36,6 +36,7 @@ class ScreenshotService : LifecycleService() {
         private const val NOTIFICATION_ID = 1001
         private const val NOTIFICATION_ID_CONFIRM = 1002
         private const val NOTIFICATION_ID_DUPLICATE = 1003
+        private val TIME_COMPONENT_REGEX = Regex("""\d{1,2}:\d{2}:\d{2}""")
     }
 
     private var monitor: ScreenshotMonitor? = null
@@ -101,6 +102,9 @@ class ScreenshotService : LifecycleService() {
         super.onBind(intent)
         return null
     }
+
+    private fun hasTimeComponent(paymentTime: String?): Boolean =
+        !paymentTime.isNullOrEmpty() && TIME_COMPONENT_REGEX.containsMatchIn(paymentTime)
 
     private suspend fun processScreenshot(uriString: String, timestamp: Long) {
         try {
@@ -178,16 +182,19 @@ class ScreenshotService : LifecycleService() {
             Log.d(TAG, "processScreenshot: Parsed receipt: amount=${receiptData.amount}, discount=${receiptData.discount}, items=${receiptData.items.size}, sourceApp=$sourceApp")
 
             val orderNumber = receiptData.orderNumber
-            var isDuplicate = false
+            val paymentTime = receiptData.paymentTime
+            val appKey = sourceApp ?: ""
+            val receiptDao = AppDatabase.getInstance(applicationContext).receiptDao()
+            var duplicateId: Long? = null
             if (!orderNumber.isNullOrEmpty()) {
-                val appKey = sourceApp ?: ""
-                val receiptDao = AppDatabase.getInstance(applicationContext).receiptDao()
-                isDuplicate = withContext(Dispatchers.IO) { receiptDao.existsByOrderNumber(orderNumber, appKey) }
+                duplicateId = withContext(Dispatchers.IO) { receiptDao.getByOrderNumber(orderNumber, appKey)?.id }
+            } else if (hasTimeComponent(paymentTime)) {
+                duplicateId = withContext(Dispatchers.IO) { receiptDao.getByPaymentTime(paymentTime!!, appKey)?.id }
             }
-            Log.d(TAG, "processScreenshot: orderNumber=$orderNumber, isDuplicate=$isDuplicate")
+            Log.d(TAG, "processScreenshot: orderNumber=$orderNumber, paymentTime=$paymentTime, duplicateId=$duplicateId")
 
-            if (isDuplicate) {
-                notifyDuplicateReceipt(uriString)
+            if (duplicateId != null) {
+                notifyDuplicateReceipt(uriString, duplicateId)
                 return
             }
 
@@ -239,9 +246,10 @@ class ScreenshotService : LifecycleService() {
         }
     }
 
-    private fun notifyDuplicateReceipt(uriString: String) {
+    private fun notifyDuplicateReceipt(uriString: String, duplicateId: Long) {
         val deleteIntent = Intent(this, ConfirmActivity::class.java).apply {
             putExtra("delete_screenshot_uri", uriString)
+            putExtra("receipt_id", duplicateId)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
         }
         val deletePendingIntent = PendingIntent.getActivity(

@@ -6,6 +6,7 @@ import org.caojun.shotocr.parser.ReceiptParser
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ReceiptParserTest {
@@ -405,5 +406,358 @@ class ReceiptParserTest {
         assertEquals(1.0, result.originalAmount!!, 0.001)
         assertEquals(0.01, result.discount!!, 0.001)
         assertEquals(0.99, result.amount!!, 0.001)
+    }
+
+    private val jdOrderDetailText = """
+        日90-09:19:56144
+        .
+        等待收货
+        仓库处理中预计今天发货
+        圆通快递·您的订单由第三方卖家拣货完成，待出
+        库交付圆通快递，运单号为Y73763750952615
+        晚发赔服务生效中，送达超承诺时效最高赔30元
+        莘松路958弄上海康城山林道66号301室
+        朱女士139****0564
+        进店>
+        郑远元旗舰店
+        郑远元旗舰店三黄抑...
+        ①到手¥8.76
+        数量×2.【单瓶装】巧万√
+        ¥10
+        无理由退货政策
+        加购物车
+        退款/售后
+        郑远元官方旗舰店授..
+        i到手¥118.2
+        ¥135
+        数量×1,太诺+净舒康
+        无理由退货政策
+        加购物车
+        退款/售后
+        实付款
+        共减¥28.63合计¥126.37
+        订单编号
+        3648468013999049复制
+        交易快照
+        发生交易争议时，可作为判断依据
+        支付方式
+        白条账单白条>
+        发票类型
+        不开发票>
+        支付时间
+        2026-10-1121:09:48
+        下单时间
+        2026.10.11
+        评价得40京豆
+        更多
+        确认收货
+        我要催单
+        再次购买
+    """.trimIndent()
+
+    @Test
+    fun basicParser_parsesJdOrderDetail() {
+        val result = ReceiptParser().parse(jdOrderDetailText)
+
+        assertEquals(126.37, result.amount!!, 0.001)
+        assertEquals(28.63, result.discount!!, 0.001)
+        assertEquals(155.0, result.originalAmount!!, 0.001)
+        assertEquals("郑远元旗舰店", result.storeName)
+        assertTrue(result.paymentMethod?.contains("白条") == true)
+        assertEquals("3648468013999049", result.orderNumber)
+    }
+
+    @Test
+    fun configurableParser_parsesJdOrderDetail() {
+        val result = ConfigurableReceiptParser(ReceiptParseConfig.default()).parse(jdOrderDetailText)
+
+        assertEquals(126.37, result.amount!!, 0.001)
+        assertEquals(28.63, result.discount!!, 0.001)
+        assertEquals(155.0, result.originalAmount!!, 0.001)
+        assertEquals("郑远元旗舰店", result.storeName)
+        assertTrue(result.paymentMethod?.contains("白条") == true)
+        assertEquals("3648468013999049", result.orderNumber)
+    }
+
+    private val taobaoOrderDetailText = """
+        09:52:35144N90-
+        充值成功
+        茉莉的卡券快充
+        进店逛逛〉
+        88VIP好评率98%，客服平均22秒回复
+        哈啰单车月卡不限次1个月哈啰骑
+        单车|24小时自动发货
+        ¥21.8
+        行卡30天一个月三个月季卡
+        月卡
+        哈啰单车骑行30天「仅限单车」充
+        乐
+        直号码：13817066976
+        全国通
+        实付价¥21.8
+        申请售后
+        ¥21.8
+        实付款
+        订单信息共6项
+        5127314763021013439复制
+        支付宝支付
+        支付方式
+        不***************
+        收货信息
+        2026100823001165011453404071
+        支付宝交易号
+        创建时间
+        2026-10-0817:42:42
+        2026-10-0817:42:59
+        付款时间
+        2026-10-0817:47:05
+        成交时间
+        订单保障
+        凭据：10月8日下单交易快照>
+        JISSBON
+        水润呵护女性
+        访生Pr
+        8
+        删除订单
+        评价
+        再买一笔
+    """.trimIndent()
+
+    @Test
+    fun basicParser_parsesTaobaoOrderDetail() {
+        val result = ReceiptParser().parse(taobaoOrderDetailText)
+
+        assertEquals("茉莉的卡券快充", result.storeName)
+        assertEquals("淘宝", result.sourceApp)
+        assertEquals(21.8, result.amount!!, 0.001)
+    }
+
+    @Test
+    fun configurableParser_parsesTaobaoOrderDetail() {
+        val result = ConfigurableReceiptParser(ReceiptParseConfig.default()).parse(taobaoOrderDetailText)
+
+        assertEquals("茉莉的卡券快充", result.storeName)
+        assertEquals("淘宝", result.sourceApp)
+        assertEquals(21.8, result.amount!!, 0.001)
+    }
+
+    private val taobaoOrderWithTotalText = """
+        日90--
+        10:15:24144
+        充值成功
+        茉莉的卡券快充
+        8
+        进店逛逛〉
+        88VIP好评率98%，客服平均22秒回复
+        哈啰单车月卡不限次1个月哈啰骑
+        罗单车|24小时自动发货
+        ¥21.8
+        行卡30天一个月三个月季卡
+        月卡
+        哈啰单车骑行30天「仅限单车」充
+        店
+        直号码：13817066976
+        全国通
+        实付价¥21.8
+        申请售后
+        ¥21.8
+        商品总价共1件
+        ¥21.8^
+        实付款
+        订单信息共6项
+        5127314763021013439复制
+        支付方式
+        支付宝支付
+        不****************
+        收货信息
+        2026100823001165011453404071
+        支付宝交易号
+        2026-10-0817:42:42
+        创建时间
+        2026-10-0817:42:59
+        付款时间
+        2026-10-0817:47:05
+        成交时间
+        凭据：10月8日下单交易快照>
+        订单保障
+        JISSBON
+        水润呵护女性
+        删除订单
+        评价
+        再买一笔
+        客服
+    """.trimIndent()
+
+    @Test
+    fun basicParser_parsesTaobaoOrderDetailWithTotal() {
+        val result = ReceiptParser().parse(taobaoOrderWithTotalText)
+
+        assertEquals("茉莉的卡券快充", result.storeName)
+        assertEquals("淘宝", result.sourceApp)
+        assertEquals(21.8, result.amount!!, 0.001)
+        assertEquals(21.8, result.originalAmount!!, 0.001)
+    }
+
+    @Test
+    fun configurableParser_parsesTaobaoOrderDetailWithTotal() {
+        val result = ConfigurableReceiptParser(ReceiptParseConfig.default()).parse(taobaoOrderWithTotalText)
+
+        assertEquals("茉莉的卡券快充", result.storeName)
+        assertEquals("淘宝", result.sourceApp)
+        assertEquals(21.8, result.amount!!, 0.001)
+        assertEquals(21.8, result.originalAmount!!, 0.001)
+    }
+
+    @Test
+    fun configurableParser_dbConfigMissingOriginalKeyword_stillParsesOriginal() {
+        val config = ReceiptParseConfig.default().copy(
+            originalAmountKeywords = listOf("订单金额")
+        )
+        val result = ConfigurableReceiptParser(config).parse(taobaoOrderWithTotalText)
+
+        assertEquals(21.8, result.originalAmount!!, 0.001)
+    }
+
+    private val taobaoBikeNoOriginalText = """
+        日86
+        11:31:06144支
+        充值成功
+        茉莉的卡券快充
+        进店逛逛>
+        88VIP好评率98%，客服平均22秒回复
+        单车|24小时自动发货
+        哈啰单车月卡不限次1个月哈哆...¥21.8
+        哈啰单车骑行30天「仅限单车」
+        月卡
+        福
+        实付价¥21.8
+        申请售后
+        ¥21.8
+        实付款
+        订单信息共6项
+        5127314763021013439复制
+        支付宝支付
+        支付方式
+        不★****************
+        收货信息
+        2026100823001165011453404071
+        支付宝交易号
+        2026-10-0817:42:42
+        创建时间
+        2026-10-0817:42:59
+        付款时间
+        2026-10-0817:47:05
+        成交时间
+        凭据：10月8日下单交易快照>
+        订单保障
+        豆包
+        专业版会员
+        AI智能助手高效创作
+        再买一笔
+        删除订单
+        评价
+    """.trimIndent()
+
+    @Test
+    fun basicParser_originalAmountMissing_fallsBackToAmount() {
+        val result = ReceiptParser().parse(taobaoBikeNoOriginalText)
+
+        assertEquals("茉莉的卡券快充", result.storeName)
+        assertEquals("淘宝", result.sourceApp)
+        assertEquals(21.8, result.amount!!, 0.001)
+        assertNull(result.discount)
+        assertEquals(21.8, result.originalAmount!!, 0.001)
+    }
+
+    @Test
+    fun configurableParser_originalAmountMissing_fallsBackToAmount() {
+        val result = ConfigurableReceiptParser(ReceiptParseConfig.default()).parse(taobaoBikeNoOriginalText)
+
+        assertEquals(21.8, result.amount!!, 0.001)
+        assertEquals(21.8, result.originalAmount!!, 0.001)
+    }
+
+    private val noOriginalWithDiscountText = """
+        微信支付
+        某商户
+        交易成功
+        实付金额 ¥100.00
+        立减优惠¥10.00
+    """.trimIndent()
+
+    @Test
+    fun basicParser_originalMissingWithDiscount_fallsBackToAmountPlusDiscount() {
+        val result = ReceiptParser().parse(noOriginalWithDiscountText)
+
+        assertEquals(100.0, result.amount!!, 0.001)
+        assertEquals(10.0, result.discount!!, 0.001)
+        assertEquals(110.0, result.originalAmount!!, 0.001)
+    }
+
+    private val taobaoDiscountBreakdownText = """
+        日必80
+        12:00:28144
+        交易成功
+        已签收新沪路198弄19号1101室
+        曹先生86-135****6246
+        FDD国际电工旗舰店
+        进店逛逛〉
+        国际电工
+        88VIP好评率98%，客服满意度94%
+        门铃家用无线呼叫器入户门...
+        【白色】1个按键+1个响铃【家庭..
+        退货宝15天价保假一赔四>
+        1按键+1响铃
+        实付价¥16.95价格明细>
+        更多
+        去看看>
+        门铃按键装门外还是门内
+        加入购物车
+        申请售后
+        闲鱼转卖
+        ¥16.95
+        买付款共减¥4.05优惠解析>
+        3官方限时补贴抵¥3.7平台券抵¥0.35
+        订单信息共8项
+        5127478346253013439|复制
+        支付宝支付
+        支付方式
+        曹**，86-135***6246,，上海上海市宝山
+        收货信息
+        X大场**
+        天猫积分
+        获得8点积分>
+        2026092623001165011418065344
+        支付宝交易号
+        2026-09-2610:43:22
+        创建时间
+        2026-09-2610:43:45
+        付款时间
+        8
+        再买一单
+        加入购物车
+        评价
+        更多
+        客服
+    """.trimIndent()
+
+    @Test
+    fun basicParser_discountBreakdown_notDoubleCounted() {
+        val result = ReceiptParser().parse(taobaoDiscountBreakdownText)
+
+        assertEquals(16.95, result.amount!!, 0.001)
+        assertEquals(4.05, result.discount!!, 0.001)
+        assertEquals(21.0, result.originalAmount!!, 0.001)
+        assertEquals("FDD国际电工旗舰店", result.storeName)
+        assertEquals("淘宝", result.sourceApp)
+    }
+
+    @Test
+    fun configurableParser_discountBreakdown_notDoubleCounted() {
+        val result = ConfigurableReceiptParser(ReceiptParseConfig.default()).parse(taobaoDiscountBreakdownText)
+
+        assertEquals(16.95, result.amount!!, 0.001)
+        assertEquals(4.05, result.discount!!, 0.001)
+        assertEquals(21.0, result.originalAmount!!, 0.001)
     }
 }

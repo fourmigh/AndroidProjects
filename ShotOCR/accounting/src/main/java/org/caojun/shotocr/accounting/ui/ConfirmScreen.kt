@@ -44,7 +44,8 @@ fun ConfirmScreen(
     onCancel: () -> Unit = {},
     onDeleteScreenshot: () -> Unit = {},
     askDeleteOnCancel: Boolean = false,
-    autoSuggestedCategoryId: String? = null
+    autoSuggestedCategoryId: String? = null,
+    initialDeleteScreenshot: Boolean = false
 ) {
     var amount by remember { mutableStateOf(receipt.amount) }
     var discount by remember { mutableStateOf(receipt.discount) }
@@ -59,6 +60,7 @@ fun ConfirmScreen(
     var showSaveToast by remember { mutableStateOf(false) }
     var showFullscreenImage by remember { mutableStateOf(false) }
     var showCancelDialog by remember { mutableStateOf(false) }
+    var showInitialDeleteDialog by remember { mutableStateOf(initialDeleteScreenshot) }
     var rawTextExpanded by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
@@ -87,6 +89,27 @@ fun ConfirmScreen(
                     showCancelDialog = false
                     onCancel()
                 }) {
+                    Text(stringResource(org.caojun.shotocr.accounting.R.string.keep_screenshot))
+                }
+            }
+        )
+    }
+
+    if (showInitialDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showInitialDeleteDialog = false },
+            title = { Text(stringResource(org.caojun.shotocr.accounting.R.string.duplicate_delete_screenshot_title)) },
+            text = { Text(stringResource(org.caojun.shotocr.accounting.R.string.duplicate_delete_screenshot_message)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showInitialDeleteDialog = false
+                    onDeleteScreenshot()
+                }) {
+                    Text(stringResource(org.caojun.shotocr.accounting.R.string.delete_screenshot))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showInitialDeleteDialog = false }) {
                     Text(stringResource(org.caojun.shotocr.accounting.R.string.keep_screenshot))
                 }
             }
@@ -376,29 +399,32 @@ fun ConfirmScreen(
                 }
             }
 
+            val currentReceipt = EditableReceipt(
+                id = receipt.id,
+                screenshotUri = receipt.screenshotUri,
+                screenshotImage = receipt.screenshotImage,
+                rawText = receipt.rawText,
+                amount = amount,
+                discount = discount,
+                originalAmount = originalAmount,
+                storeName = storeName,
+                paymentTime = paymentTime,
+                paymentMethod = paymentMethod,
+                orderNumber = orderNumber,
+                items = items,
+                sourceApp = sourceApp,
+                categoryId = categoryId
+            )
+            val saveEnabled = receipt.id <= 0 || currentReceipt != receipt
+
             Button(
                 onClick = {
-                    val savedReceipt = EditableReceipt(
-                        id = receipt.id,
-                        screenshotUri = receipt.screenshotUri,
-                        screenshotImage = receipt.screenshotImage,
-                        rawText = receipt.rawText,
-                        amount = amount,
-                        discount = discount,
-                        originalAmount = originalAmount,
-                        storeName = storeName,
-                        paymentTime = paymentTime,
-                        paymentMethod = paymentMethod,
-                        orderNumber = orderNumber,
-                        items = items,
-                        sourceApp = sourceApp,
-                        categoryId = categoryId
-                    )
                     scope.launch {
                         showSaveToast = true
-                        onSaved(savedReceipt)
+                        onSaved(currentReceipt)
                     }
                 },
+                enabled = saveEnabled,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(stringResource(org.caojun.shotocr.accounting.R.string.save))

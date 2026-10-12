@@ -28,6 +28,7 @@
     <string name="category_shopping_daily">Daily Necessities</string>
     <string name="category_shopping_digital">Digital &amp; Appliances</string>
     <string name="category_transport_public">Public Transit</string>
+    <string name="category_transport_bike">Bike Sharing</string>
     <string name="category_transport_taxi">Rideshare &amp; Taxi</string>
     <string name="category_transport_maintenance">Vehicle Maintenance</string>
     <string name="category_transport_parking">Parking</string>

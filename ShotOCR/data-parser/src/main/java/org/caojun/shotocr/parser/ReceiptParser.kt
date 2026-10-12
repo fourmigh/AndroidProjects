@@ -2,7 +2,10 @@ package org.caojun.shotocr.parser
 
 open class ReceiptParser : DataParser<ReceiptData> {
 
+    // 顺序即优先级：电商订单页含"支付宝交易号/支付宝支付"等，需先于"支付宝"命中。
     private val sourceAppSignatures = listOf(
+        "淘宝" to listOf("淘宝", "天猫", "支付宝交易号", "进店逛逛"),
+        "京东" to listOf("京东", "京豆", "京东交易", "确认收货", "我要催单"),
         "云闪付" to listOf("云闪付"),
         "微信" to listOf("微信支付", "微信零钱", "零钱通", "微信账单"),
         "支付宝" to listOf("支付宝", "花呗", "余额宝")
@@ -11,12 +14,19 @@ open class ReceiptParser : DataParser<ReceiptData> {
     override fun parse(text: String): ReceiptData {
         val lines = text.lines().map { it.trim() }.filter { it.isNotEmpty() }
 
-        val originalAmount = extractOriginalAmount(lines)
+        var originalAmount = extractOriginalAmount(lines)
         var amount = extractAmount(lines, originalAmount)
         val discount = extractDiscount(lines, originalAmount)
         if (amount == null && originalAmount != null && discount != null) {
             val inferred = originalAmount - discount
             if (inferred > 0) amount = inferred
+        }
+        if (originalAmount == null && amount != null) {
+            originalAmount = if (discount != null && amount + discount > amount) {
+                Math.round((amount + discount) * 100.0) / 100.0
+            } else {
+                amount
+            }
         }
         val storeName = extractStoreName(lines)
         val paymentTime = extractPaymentTime(lines)
@@ -54,22 +64,32 @@ open class ReceiptParser : DataParser<ReceiptData> {
     protected open fun amountPattern(): Regex = Regex("""(\d+\.?\d*)""")
 
     protected open fun discountKeywords(): List<String> =
-        listOf("优惠", "尤惠", "减免", "折扣", "立减", "满减", "抵扣", "福利", "财神", "红包", "补贴", "返现")
+        listOf("优惠", "尤惠", "减免", "共减", "共省", "折扣", "立减", "满减", "抵扣", "福利", "财神", "红包", "补贴", "返现")
 
     protected open fun discountExcludeKeywords(): List<String> =
         listOf("领", "就可用", "去查看", "推荐", "服务")
 
+    /**
+     * 优惠"合计"关键词：命中即直接取该合计金额，避免其下的明细项（如"补贴抵¥3.7 平台券抵¥0.35"）
+     * 被再次累加导致重复计算。
+     */
+    protected open fun discountTotalKeywords(): List<String> =
+        listOf("共减", "共省", "共优惠", "总优惠", "优惠总额", "优惠合计", "合计优惠", "共抵扣", "共立减", "共满减")
+
     protected open fun storeNameExcludeKeywords(): List<String> =
-        listOf("账单", "详情", "支付", "订单", "交易", "时间", "方式", "说明", "奖励", "收款", "推荐", "服务", "分类", "管理", "贴纸", "解锁")
+        listOf(
+            "账单", "详情", "支付", "订单", "交易", "时间", "方式", "说明", "奖励", "收款", "推荐", "服务", "分类", "管理", "贴纸", "解锁",
+            "等待收货", "待收货", "收货", "发货", "仓库", "预计", "物流", "快递", "运单", "收货地址", "女士", "先生", "充值成功"
+        )
 
     protected open fun paymentMethodKeywords(): List<String> =
         listOf("付款方式", "寸款方式", "支付方式")
 
     protected open fun paymentMethodValues(): List<String> =
-        listOf("银行卡", "储蓄卡", "信用卡", "花呗", "余额宝", "微信", "支付宝", "网商银行", "微信支付")
+        listOf("银行卡", "储蓄卡", "信用卡", "花呗", "余额宝", "微信", "支付宝", "网商银行", "微信支付", "白条", "京东支付")
 
     protected open fun orderNumberKeywords(): List<String> =
-        listOf("订单号", "交易号", "流水号")
+        listOf("订单号", "订单编号", "订单号码", "交易号", "流水号")
 
     protected open fun orderNumberPattern(): Regex = Regex("""(\d{16,})""")
 
@@ -87,8 +107,12 @@ open class ReceiptParser : DataParser<ReceiptData> {
             val line = lines[i]
             val hasKeyword = keywords.any { keyword -> line.contains(keyword) }
             if (hasKeyword) {
+                val currencyMatch = currencyPattern.find(line)
+                if (currencyMatch != null) {
+                    return currencyMatch.groupValues[1].toDoubleOrNull()
+                }
                 val match = amountPattern.find(line)
-                if (match != null) {
+                if (match != null && !isQuantityAt(line, match.range.last + 1)) {
                     return match.groupValues[1].toDoubleOrNull()
                 }
                 for (offset in listOf(1, 2, -1, -2)) {
@@ -106,12 +130,11 @@ open class ReceiptParser : DataParser<ReceiptData> {
                     if (j == i) continue
                     val adjacent = lines[j].trim()
                     if (adjacent.startsWith("-")) continue
-                    val adjacentMatch = amountPattern.find(adjacent)
-                    if (adjacentMatch != null) {
-                        val value = adjacentMatch.groupValues[1].toDoubleOrNull()
-                        if (value != null && value > 0) {
-                            return value
-                        }
+                    val adjacentMatch = amountPattern.find(adjacent) ?: continue
+                    if (isQuantityAt(adjacent, adjacentMatch.range.last + 1)) continue
+                    val value = adjacentMatch.groupValues[1].toDoubleOrNull()
+                    if (value != null && value > 0) {
+                        return value
                     }
                 }
             }
@@ -153,7 +176,7 @@ open class ReceiptParser : DataParser<ReceiptData> {
             else null
             if (rawAmountLine == null) continue
             val amountLine = normalizeOcrAmountLine(rawAmountLine)
-            val rawValue = extractNumber(amountRegex, amountLine) ?: continue
+            val rawValue = extractKeywordAmount(amountRegex, amountLine) ?: continue
             return Math.abs(applyDecimalInference(rawValue, amountLine, originalAmount))
         }
 
@@ -164,6 +187,41 @@ open class ReceiptParser : DataParser<ReceiptData> {
         val match = regex.find(line) ?: return null
         val matched = if (match.groupValues.size > 1) match.groupValues[1] else match.value
         return matched.replace("¥", "").replace("￥", "").toDoubleOrNull()
+    }
+
+    /**
+     * 提取关键字行中的金额：优先取"合计/实付/实收/应付"标签后的金额，
+     * 否则取该行最后一个金额。避免"共减¥28.63 合计¥126.37"被取成优惠额 28.63。
+     */
+    protected open fun extractKeywordAmount(regex: Regex, line: String): Double? {
+        val labeled = amountLabelPattern.find(line)
+        if (labeled != null) {
+            return labeled.groupValues[1].replace("¥", "").replace("￥", "").toDoubleOrNull()
+        }
+        return regex.findAll(line)
+            .mapNotNull { match ->
+                val matched = if (match.groupValues.size > 1) match.groupValues[1] else match.value
+                matched.replace("¥", "").replace("￥", "").toDoubleOrNull()
+            }
+            .lastOrNull()
+    }
+
+    private val amountLabelPattern =
+        Regex("""(?:合计|实付|实收|应付|支付金额)[^\d]*[¥￥]?\s*(\d+\.?\d*)""")
+
+    private val shopNamePattern =
+        Regex("""[\u4e00-\u9fa5A-Za-z0-9]{2,}(?:旗舰店|专卖店|专营店|官方店)""")
+
+    private val quantitySuffixes = setOf(
+        '件', '个', '份', '张', '瓶', '盒', '支', '条', '包', '袋', '人', '天', '次', '台', '只', '套',
+        '本', '杯', '组', '箱', '罐', '桶', '片', '粒', '颗', '枚', '笔', '项', '种', '款', '名', '户',
+        '例', '场', '部', '首', '集', '步', '层', '间', '辆', '束', '把', '根', '串', '副', '双'
+    )
+
+    /** 判断 [index] 处是否紧跟量词，用于排除"共1件"这类数量而非金额。 */
+    private fun isQuantityAt(line: String, index: Int): Boolean {
+        if (index < 0 || index >= line.length) return false
+        return line[index] in quantitySuffixes
     }
 
     protected open fun applyDecimalInference(rawValue: Double, rawLine: String, originalAmount: Double?): Double {
@@ -207,6 +265,9 @@ open class ReceiptParser : DataParser<ReceiptData> {
         var totalDiscount = 0.0
         var found = false
 
+        extractDiscountTotal(lines, discountTotalKeywords(), excludeKeywords, datePattern, originalAmount)
+            ?.let { return Math.round(it * 100.0) / 100.0 }
+
         for (i in lines.indices) {
             if (i in processedIndices) continue
             val line = lines[i]
@@ -234,6 +295,36 @@ open class ReceiptParser : DataParser<ReceiptData> {
         }
 
         return if (found) Math.round(totalDiscount * 100.0) / 100.0 else null
+    }
+
+    /** 命中优惠"合计"关键词时返回其金额（本行优先，其次邻近行），否则返回 null。 */
+    protected open fun extractDiscountTotal(
+        lines: List<String>,
+        totalKeywords: List<String>,
+        excludeKeywords: List<String>,
+        datePattern: Regex,
+        originalAmount: Double?
+    ): Double? {
+        if (totalKeywords.isEmpty()) return null
+
+        for (i in lines.indices) {
+            val line = lines[i]
+            if (excludeKeywords.any { line.contains(it) }) continue
+            if (!totalKeywords.any { line.contains(it) }) continue
+
+            val value = findDiscountAmount(line)
+            if (value != null && Math.abs(value) > 0) return Math.abs(value)
+
+            for (offset in listOf(1, -1, 2, -2)) {
+                val j = i + offset
+                if (j < 0 || j >= lines.size) continue
+                val adjacent = lines[j]
+                if (excludeKeywords.any { adjacent.contains(it) }) continue
+                val adjacentValue = discountAdjacentValue(adjacent, datePattern, originalAmount) ?: continue
+                return Math.abs(adjacentValue)
+            }
+        }
+        return null
     }
 
     protected open fun selectDiscountNeighbor(
@@ -314,18 +405,38 @@ open class ReceiptParser : DataParser<ReceiptData> {
         val excludeKeywords = storeNameExcludeKeywords()
 
         for (line in lines) {
-            if (line.length < 2) continue
             if (excludeKeywords.any { keyword -> line.contains(keyword) }) continue
-            if (line.all { it.isDigit() || it == '.' || it == '-' || it == '¥' || it == '￥' || it == ' ' }) continue
-            if (line.matches(Regex("""\d{4}[-/]\d{1,2}[-/]\d{1,2}.*"""))) continue
-            if (line.matches(Regex("""[A-Za-z0-9\s.:-]+""")) && line.length < 15) continue
-            if (line.contains("√") || line.contains(">") || line.contains("¥")) continue
+            val shopMatch = shopNamePattern.find(line)
+            if (shopMatch != null) return shopMatch.value
+        }
 
-            if (line.contains(Regex("""[\u4e00-\u9fa5]{2,}""")) && !line.contains(Regex("""\d"""))) {
+        for (i in lines.indices) {
+            if (!lines[i].contains("进店")) continue
+            for (offset in listOf(-1, 1, -2, 2)) {
+                val j = i + offset
+                if (j !in lines.indices) continue
+                val candidate = lines[j].trim()
+                if (isCandidateStoreName(candidate, excludeKeywords)) return candidate
+            }
+        }
+
+        for (line in lines) {
+            if (isCandidateStoreName(line, excludeKeywords)) {
                 return line
             }
         }
         return null
+    }
+
+    private fun isCandidateStoreName(line: String, excludeKeywords: List<String>): Boolean {
+        if (line.length < 2) return false
+        if (excludeKeywords.any { keyword -> line.contains(keyword) }) return false
+        if (line.all { it.isDigit() || it == '.' || it == '-' || it == '¥' || it == '￥' || it == ' ' }) return false
+        if (line.matches(Regex("""\d{4}[-/]\d{1,2}[-/]\d{1,2}.*"""))) return false
+        if (line.matches(Regex("""[A-Za-z0-9\s.:-]+""")) && line.length < 15) return false
+        if (line.contains("√") || line.contains(">") || line.contains("¥")) return false
+
+        return line.contains(Regex("""[\u4e00-\u9fa5]{2,}""")) && !line.contains(Regex("""\d"""))
     }
 
     protected open fun extractPaymentTime(lines: List<String>): String? {
@@ -461,8 +572,9 @@ open class ReceiptParser : DataParser<ReceiptData> {
 
         for (line in lines) {
             val trimmed = line.trim()
-            if (trimmed.all { it.isDigit() } && trimmed.length >= 16) {
-                return trimmed
+            val match = orderRegex.find(trimmed)
+            if (match != null) {
+                return match.groupValues[1]
             }
         }
 

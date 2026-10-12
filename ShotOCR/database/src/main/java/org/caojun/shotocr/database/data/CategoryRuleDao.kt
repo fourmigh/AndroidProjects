@@ -8,10 +8,10 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface CategoryRuleDao {
-    @Query("SELECT * FROM category_rules")
+    @Query("SELECT * FROM category_rules ORDER BY priority ASC, categoryId ASC")
     fun observeAll(): Flow<List<CategoryRuleEntity>>
 
-    @Query("SELECT * FROM category_rules")
+    @Query("SELECT * FROM category_rules ORDER BY priority ASC, categoryId ASC")
     suspend fun getAll(): List<CategoryRuleEntity>
 
     @Query("SELECT * FROM category_rules WHERE categoryId = :categoryId")
@@ -28,4 +28,7 @@ interface CategoryRuleDao {
 
     @Query("SELECT COUNT(*) FROM category_rules")
     suspend fun count(): Int
+
+    @Query("SELECT MAX(priority) FROM category_rules")
+    suspend fun maxPriority(): Int?
 }

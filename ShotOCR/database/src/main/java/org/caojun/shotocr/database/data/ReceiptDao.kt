@@ -19,6 +19,15 @@ interface ReceiptDao {
     @Query("SELECT EXISTS(SELECT 1 FROM receipts WHERE orderNumber = :orderNumber AND sourceApp = :sourceApp)")
     suspend fun existsByOrderNumber(orderNumber: String, sourceApp: String): Boolean
 
+    @Query("SELECT EXISTS(SELECT 1 FROM receipts WHERE paymentTime = :paymentTime AND sourceApp = :sourceApp)")
+    suspend fun existsByPaymentTime(paymentTime: String, sourceApp: String): Boolean
+
+    @Query("SELECT * FROM receipts WHERE orderNumber = :orderNumber AND sourceApp = :sourceApp LIMIT 1")
+    suspend fun getByOrderNumber(orderNumber: String, sourceApp: String): ReceiptEntity?
+
+    @Query("SELECT * FROM receipts WHERE paymentTime = :paymentTime AND sourceApp = :sourceApp LIMIT 1")
+    suspend fun getByPaymentTime(paymentTime: String, sourceApp: String): ReceiptEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(receipt: ReceiptEntity): Long
 

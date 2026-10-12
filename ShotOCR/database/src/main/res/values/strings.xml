@@ -28,6 +28,7 @@
     <string name="category_shopping_daily">日用百货</string>
     <string name="category_shopping_digital">数码电器</string>
     <string name="category_transport_public">公共交通</string>
+    <string name="category_transport_bike">共享单车</string>
     <string name="category_transport_taxi">打车/网约车</string>
     <string name="category_transport_maintenance">车辆维护</string>
     <string name="category_transport_parking">停车费</string>

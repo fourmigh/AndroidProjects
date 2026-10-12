@@ -1,5 +1,6 @@
 package org.caojun.shotocr.database.data
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
@@ -12,5 +13,7 @@ data class CategoryRuleEntity(
     @PrimaryKey val categoryId: String,
     val keywordsJson: String,
     val isDefault: Boolean = false,
+    /** 匹配优先级，越小越先命中；内置分类按其定义顺序编号，自定义分类排在其后。 */
+    @ColumnInfo(defaultValue = "0") val priority: Int = 0,
     val updatedAt: Long = System.currentTimeMillis()
 )

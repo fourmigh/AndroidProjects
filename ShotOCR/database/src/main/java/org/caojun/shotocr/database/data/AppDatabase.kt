@@ -15,7 +15,7 @@ import org.caojun.shotocr.parser.ReceiptParseConfig
 
 @Database(
     entities = [ReceiptEntity::class, ParserConfigEntity::class, CategoryEntity::class, CategoryRuleEntity::class],
-    version = 10
+    version = 11
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun receiptDao(): ReceiptDao
@@ -131,6 +131,58 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE category_rules ADD COLUMN priority INTEGER NOT NULL DEFAULT 0")
+                // 按内置规则定义顺序回填匹配优先级（与 DefaultCategoryRules.rules 保持一致）。
+                db.execSQL(
+                    """
+                    UPDATE category_rules SET priority = CASE categoryId
+                        WHEN 'entertainment.dining' THEN 0
+                        WHEN 'entertainment.movie' THEN 1
+                        WHEN 'entertainment.game' THEN 2
+                        WHEN 'entertainment.fitness' THEN 3
+                        WHEN 'transport.public' THEN 4
+                        WHEN 'transport.bike' THEN 5
+                        WHEN 'transport.taxi' THEN 6
+                        WHEN 'transport.parking' THEN 7
+                        WHEN 'transport.maintenance' THEN 8
+                        WHEN 'shopping.fuel' THEN 9
+                        WHEN 'shopping.grocery' THEN 10
+                        WHEN 'shopping.online' THEN 11
+                        WHEN 'shopping.retail' THEN 12
+                        WHEN 'life.utility' THEN 13
+                        WHEN 'life.rent' THEN 14
+                        WHEN 'life.property' THEN 15
+                        WHEN 'life.telecom' THEN 16
+                        WHEN 'health.hospital' THEN 17
+                        WHEN 'health.pharmacy' THEN 18
+                        WHEN 'health.dental' THEN 19
+                        WHEN 'health.insurance' THEN 20
+                        WHEN 'growth.education' THEN 21
+                        WHEN 'growth.book' THEN 22
+                        WHEN 'growth.finance' THEN 23
+                        WHEN 'shopping.clothing' THEN 24
+                        WHEN 'shopping.daily' THEN 25
+                        WHEN 'shopping.digital' THEN 26
+                        WHEN 'life.beauty' THEN 27
+                        WHEN 'life.errand' THEN 28
+                        WHEN 'life.housekeeping' THEN 29
+                        WHEN 'life.repair' THEN 30
+                        WHEN 'life.laundry' THEN 31
+                        WHEN 'life.moving' THEN 32
+                        WHEN 'transport.travel' THEN 33
+                        WHEN 'entertainment.parenting' THEN 34
+                        WHEN 'digital_services.ai' THEN 35
+                        WHEN 'digital_services.software' THEN 36
+                        WHEN 'digital_services.cloud' THEN 37
+                        WHEN 'digital_services.membership' THEN 38
+                        ELSE priority END
+                    """.trimIndent()
+                )
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 Room.databaseBuilder(
@@ -147,7 +199,8 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_6_7,
                         MIGRATION_7_8,
                         MIGRATION_8_9,
-                        MIGRATION_9_10
+                        MIGRATION_9_10,
+                        MIGRATION_10_11
                     )
                     .addCallback(object : Callback() {
                         override fun onCreate(db: SupportSQLiteDatabase) {
@@ -181,13 +234,16 @@ abstract class AppDatabase : RoomDatabase() {
                                 if (missingCategories.isNotEmpty()) {
                                     categoryDao.insertAll(missingCategories)
                                 }
-                                // 补齐缺失的内置关键词规则
+                                // 刷新内置关键词规则：缺失的补齐，仍是内置默认（未被用户编辑）的更新为最新定义。
+                                // 用户编辑过的规则 isDefault=false，保留不动。
                                 val categoryRuleDao = database.categoryRuleDao()
-                                val existingRuleIds = categoryRuleDao.getAll().map { it.categoryId }.toSet()
-                                val missingRules =
-                                    DefaultCategoryRules.toEntities().filter { it.categoryId !in existingRuleIds }
-                                if (missingRules.isNotEmpty()) {
-                                    categoryRuleDao.upsertAll(missingRules)
+                                val existingRules = categoryRuleDao.getAll().associateBy { it.categoryId }
+                                val rulesToUpsert = DefaultCategoryRules.toEntities().filter { default ->
+                                    val existing = existingRules[default.categoryId]
+                                    existing == null || existing.isDefault
+                                }
+                                if (rulesToUpsert.isNotEmpty()) {
+                                    categoryRuleDao.upsertAll(rulesToUpsert)
                                 }
                             }
                         }
