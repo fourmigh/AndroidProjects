@@ -6,6 +6,7 @@ open class ReceiptParser : DataParser<ReceiptData> {
     private val sourceAppSignatures = listOf(
         "淘宝" to listOf("淘宝", "天猫", "支付宝交易号", "进店逛逛"),
         "京东" to listOf("京东", "京豆", "京东交易", "确认收货", "我要催单"),
+        "抖音" to listOf("抖音支付", "抖音月付", "抖音"),
         "云闪付" to listOf("云闪付"),
         "微信" to listOf("微信支付", "微信零钱", "零钱通", "微信账单"),
         "支付宝" to listOf("支付宝", "花呗", "余额宝")
@@ -67,7 +68,10 @@ open class ReceiptParser : DataParser<ReceiptData> {
         listOf("优惠", "尤惠", "减免", "共减", "共省", "折扣", "立减", "满减", "抵扣", "福利", "财神", "红包", "补贴", "返现")
 
     protected open fun discountExcludeKeywords(): List<String> =
-        listOf("领", "就可用", "去查看", "推荐", "服务")
+        listOf(
+            "领", "就可用", "去查看", "推荐", "服务",
+            "有机会", "恭喜", "领取", "获得", "奖励", "免单", "积分", "去兑", "下次再来"
+        )
 
     /**
      * 优惠"合计"关键词：命中即直接取该合计金额，避免其下的明细项（如"补贴抵¥3.7 平台券抵¥0.35"）
@@ -79,14 +83,18 @@ open class ReceiptParser : DataParser<ReceiptData> {
     protected open fun storeNameExcludeKeywords(): List<String> =
         listOf(
             "账单", "详情", "支付", "订单", "交易", "时间", "方式", "说明", "奖励", "收款", "推荐", "服务", "分类", "管理", "贴纸", "解锁",
-            "等待收货", "待收货", "收货", "发货", "仓库", "预计", "物流", "快递", "运单", "收货地址", "女士", "先生", "充值成功"
+            "等待收货", "待收货", "收货", "发货", "仓库", "预计", "物流", "快递", "运单", "收货地址", "女士", "先生", "充值成功",
+            "删除", "支付成功", "规则", "商品订单", "点击收起", "免单奖励"
         )
 
     protected open fun paymentMethodKeywords(): List<String> =
         listOf("付款方式", "寸款方式", "支付方式")
 
     protected open fun paymentMethodValues(): List<String> =
-        listOf("银行卡", "储蓄卡", "信用卡", "花呗", "余额宝", "微信", "支付宝", "网商银行", "微信支付", "白条", "京东支付")
+        listOf(
+            "银行卡", "储蓄卡", "信用卡", "花呗", "余额宝", "微信", "支付宝", "网商银行", "微信支付", "白条", "京东支付",
+            "抖音月付", "抖音支付", "月付"
+        )
 
     protected open fun orderNumberKeywords(): List<String> =
         listOf("订单号", "订单编号", "订单号码", "交易号", "流水号")
@@ -211,6 +219,9 @@ open class ReceiptParser : DataParser<ReceiptData> {
 
     private val shopNamePattern =
         Regex("""[\u4e00-\u9fa5A-Za-z0-9]{2,}(?:旗舰店|专卖店|专营店|官方店)""")
+
+    private val companyNamePattern =
+        Regex("""[\u4e00-\u9fa5A-Za-z0-9（）()]{2,}(?:有限公司|有限责任公司|股份有限公司)""")
 
     private val quantitySuffixes = setOf(
         '件', '个', '份', '张', '瓶', '盒', '支', '条', '包', '袋', '人', '天', '次', '台', '只', '套',
@@ -403,6 +414,12 @@ open class ReceiptParser : DataParser<ReceiptData> {
 
     protected open fun extractStoreName(lines: List<String>): String? {
         val excludeKeywords = storeNameExcludeKeywords()
+
+        for (line in lines) {
+            if (excludeKeywords.any { keyword -> line.contains(keyword) }) continue
+            val companyMatch = companyNamePattern.find(line)
+            if (companyMatch != null) return companyMatch.value
+        }
 
         for (line in lines) {
             if (excludeKeywords.any { keyword -> line.contains(keyword) }) continue

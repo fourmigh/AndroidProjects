@@ -760,4 +760,60 @@ class ReceiptParserTest {
         assertEquals(4.05, result.discount!!, 0.001)
         assertEquals(21.0, result.originalAmount!!, 0.001)
     }
+
+    private val douyinOrderText = """
+        日5414
+        08:55:33144
+        删除
+        JO
+        库迪咖啡（北京）有限公司
+        -8.29
+        支付成功
+        ¥0.01
+        抖音支付优惠
+        2026-10-1306:33:22
+        支付时间
+        抖音月付
+        支付方式
+        目付账单信息占用月付额度，使用/核销后计入账单
+        下单后抽免单
+        免单奖励
+        规则
+        未抽中，下次再来抽免单
+        S
+        恭喜你，有机会获得20元支付红包
+        已领取600积分，去兑好礼，
+        抖音支付积分
+        1114190942877815731
+        商户单号
+        2001022610130706741247834599
+        交易单号
+        点击收起へ
+        商品订单
+        冷热都好喝】小黄油拿铁
+    """.trimIndent()
+
+    @Test
+    fun basicParser_parsesDouyinOrder() {
+        val result = ReceiptParser().parse(douyinOrderText)
+
+        assertEquals(8.29, result.amount!!, 0.001)
+        assertEquals(0.01, result.discount!!, 0.001)
+        assertEquals(8.30, result.originalAmount!!, 0.001)
+        assertEquals("库迪咖啡（北京）有限公司", result.storeName)
+        assertEquals("抖音月付", result.paymentMethod)
+        assertEquals("抖音", result.sourceApp)
+    }
+
+    @Test
+    fun configurableParser_parsesDouyinOrder() {
+        val result = ConfigurableReceiptParser(ReceiptParseConfig.default()).parse(douyinOrderText)
+
+        assertEquals(8.29, result.amount!!, 0.001)
+        assertEquals(0.01, result.discount!!, 0.001)
+        assertEquals(8.30, result.originalAmount!!, 0.001)
+        assertEquals("库迪咖啡（北京）有限公司", result.storeName)
+        assertEquals("抖音月付", result.paymentMethod)
+        assertEquals("抖音", result.sourceApp)
+    }
 }
