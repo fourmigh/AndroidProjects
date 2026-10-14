@@ -48,7 +48,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import org.caojun.shotocr.classification.R
 import org.caojun.shotocr.classification.model.Category
@@ -65,7 +64,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Slider
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import org.caojun.shotocr.classification.classifier.CategoryRule
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -76,16 +74,14 @@ fun CategoryManagementScreen(
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val listState = rememberLazyListState()
-    val categories by remember {
-        CategoryRepository.observeCategories()
-    }.collectAsStateWithLifecycle(initialValue = emptyList())
+    val categories = rememberCategories()
 
     val groups = remember(categories) { categories.toGroups() }
     val expandedIds = remember { mutableStateOf(setOf<String>()) }
 
     var searchText by remember { mutableStateOf("") }
     var threshold by remember { mutableStateOf(0.4f) }
-    var rules by remember { mutableStateOf<List<CategoryRule>>(emptyList()) }
+    val rules = rememberCategoryRules()
 
     var editing by remember { mutableStateOf<EditingTarget?>(null) }
     var addingSubTo by remember { mutableStateOf<Category?>(null) }
@@ -93,20 +89,8 @@ fun CategoryManagementScreen(
     var deleteBlockedNotice by remember { mutableStateOf<Category?>(null) }
     var editingKeywords by remember { mutableStateOf<Category?>(null) }
 
-    LaunchedEffect(Unit) {
-        rules = CategoryRuleRepository.loadRules()
-    }
-
     val matchedIds = remember(searchText, threshold, categories, rules) {
-        val query = searchText.trim()
-        if (query.isEmpty()) {
-            emptySet()
-        } else {
-            categories
-                .filter { categoryScore(context, it, query, rules) >= threshold }
-                .map { it.id }
-                .toSet()
-        }
+        matchedCategoryIds(context, categories, searchText, rules, threshold)
     }
 
     val highlightedGroupIds = remember(matchedIds, groups) {

@@ -1,9 +1,20 @@
 package org.caojun.shotocr.classification.ui
 
 import android.content.Context
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.caojun.shotocr.classification.classifier.CategoryRule
 import org.caojun.shotocr.classification.classifier.CategoryTextMatcher
 import org.caojun.shotocr.classification.model.Category
+import org.caojun.shotocr.classification.model.CategoryGroup
+import org.caojun.shotocr.classification.model.toGroups
+import org.caojun.shotocr.classification.repository.CategoryRepository
+import org.caojun.shotocr.classification.repository.CategoryRuleRepository
 import org.caojun.shotocr.database.category.DefaultCategories
 import java.util.Locale
 
@@ -36,4 +47,42 @@ fun categoryScore(
         }
     }
     return maxOf(nameScore, if (aliasHit) 1.0 else 0.0)
+}
+
+/** 统一加载分类关键词规则。 */
+@Composable
+fun rememberCategoryRules(): List<CategoryRule> {
+    var rules by remember { mutableStateOf<List<CategoryRule>>(emptyList()) }
+    LaunchedEffect(Unit) { rules = CategoryRuleRepository.loadRules() }
+    return rules
+}
+
+/** 订阅全部分类（扁平列表）。 */
+@Composable
+fun rememberCategories(): List<Category> =
+    CategoryRepository.observeCategories()
+        .collectAsStateWithLifecycle(initialValue = emptyList())
+        .value
+
+/** 订阅并按大类分组的分类列表。 */
+@Composable
+fun rememberCategoryGroups(): List<CategoryGroup> {
+    val categories = rememberCategories()
+    return remember(categories) { categories.toGroups() }
+}
+
+/** 按搜索词匹配分类，返回命中的分类 id 集合（query 为空时返回空集）。 */
+fun matchedCategoryIds(
+    context: Context,
+    categories: List<Category>,
+    query: String,
+    rules: List<CategoryRule>,
+    threshold: Float = CATEGORY_SEARCH_THRESHOLD
+): Set<String> {
+    val q = query.trim()
+    if (q.isEmpty()) return emptySet()
+    return categories
+        .filter { categoryScore(context, it, q, rules) >= threshold }
+        .map { it.id }
+        .toSet()
 }

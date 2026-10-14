@@ -24,7 +24,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,14 +35,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.caojun.shotocr.classification.R
-import org.caojun.shotocr.classification.classifier.CategoryRule
 import org.caojun.shotocr.classification.model.Category
 import org.caojun.shotocr.classification.model.CategoryGroup
 import org.caojun.shotocr.classification.model.toGroups
-import org.caojun.shotocr.classification.repository.CategoryRepository
-import org.caojun.shotocr.classification.repository.CategoryRuleRepository
 
 /**
  * 账单分类选择卡片。显示当前分类，点击弹出选择面板。
@@ -54,10 +49,7 @@ fun CategorySelectField(
     modifier: Modifier = Modifier,
     onCategorySelected: (String) -> Unit
 ) {
-    val categories by remember {
-        CategoryRepository.observeCategories()
-    }.collectAsStateWithLifecycle(initialValue = emptyList())
-
+    val categories = rememberCategories()
     val groups = remember(categories) { categories.toGroups() }
     var showSheet by remember { mutableStateOf(false) }
 
@@ -120,23 +112,18 @@ fun CategoryPickerSheet(
     val sheetState = rememberModalBottomSheetState()
     val context = LocalContext.current
     var searchText by remember { mutableStateOf("") }
-    var rules by remember { mutableStateOf<List<CategoryRule>>(emptyList()) }
-
-    LaunchedEffect(Unit) {
-        rules = CategoryRuleRepository.loadRules()
-    }
+    val rules = rememberCategoryRules()
+    val allCategories = remember(groups) { groups.flatMap { listOf(it.category) + it.children } }
 
     val query = searchText.trim()
     val visibleGroups = remember(query, groups, rules) {
         if (query.isEmpty()) {
             groups
         } else {
+            val matched = matchedCategoryIds(context, allCategories, query, rules, CATEGORY_SEARCH_THRESHOLD)
             groups.mapNotNull { group ->
-                val matchedChildren = group.children.filter { child ->
-                    categoryScore(context, child, query, rules) >= CATEGORY_SEARCH_THRESHOLD
-                }
-                val groupMatches = categoryScore(context, group.category, query, rules) >= CATEGORY_SEARCH_THRESHOLD
-                if (groupMatches || matchedChildren.isNotEmpty()) {
+                val matchedChildren = group.children.filter { it.id in matched }
+                if (group.category.id in matched || matchedChildren.isNotEmpty()) {
                     group.copy(children = matchedChildren.ifEmpty { group.children })
                 } else {
                     null
