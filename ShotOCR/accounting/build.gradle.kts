@@ -38,7 +38,7 @@ android {
 dependencies {
     implementation(platform(libs.compose.bom))
 
-    implementation(project(":data-parser"))
+    implementation(project(":prefs"))
     implementation(project(":database"))
     implementation(project(":classification"))
 

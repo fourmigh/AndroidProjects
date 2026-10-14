@@ -1,15 +1,6 @@
 package org.caojun.shotocr.accounting
 
 import android.net.Uri
-import org.caojun.shotocr.parser.ReceiptData
-import org.caojun.shotocr.parser.ReceiptItem
-
-data class EditableReceiptItem(
-    val name: String = "",
-    val price: String = "",
-    val quantity: String = "",
-    val subtotal: String = ""
-)
 
 data class EditableReceipt(
     val id: Long = 0,
@@ -23,7 +14,6 @@ data class EditableReceipt(
     val paymentTime: String = "",
     val paymentMethod: String = "",
     val orderNumber: String = "",
-    val items: List<EditableReceiptItem> = emptyList(),
     val sourceApp: String = "",
     val categoryId: String = DEFAULT_CATEGORY_ID
 ) {
@@ -41,7 +31,6 @@ data class EditableReceipt(
                 paymentTime == other.paymentTime &&
                 paymentMethod == other.paymentMethod &&
                 orderNumber == other.orderNumber &&
-                items == other.items &&
                 sourceApp == other.sourceApp &&
                 categoryId == other.categoryId
     }
@@ -58,7 +47,6 @@ data class EditableReceipt(
         result = 31 * result + paymentTime.hashCode()
         result = 31 * result + paymentMethod.hashCode()
         result = 31 * result + orderNumber.hashCode()
-        result = 31 * result + items.hashCode()
         result = 31 * result + sourceApp.hashCode()
         result = 31 * result + categoryId.hashCode()
         return result
@@ -66,29 +54,6 @@ data class EditableReceipt(
 
     companion object {
         const val DEFAULT_CATEGORY_ID = "uncategorized"
-
-        fun from(receiptData: ReceiptData, screenshotUri: Uri): EditableReceipt {
-            return EditableReceipt(
-                screenshotUri = screenshotUri,
-                rawText = receiptData.rawText,
-                amount = receiptData.amount?.toString() ?: "",
-                discount = receiptData.discount?.toString() ?: "",
-                originalAmount = receiptData.originalAmount?.toString() ?: "",
-                storeName = receiptData.storeName ?: "",
-                paymentTime = receiptData.paymentTime ?: "",
-                paymentMethod = receiptData.paymentMethod ?: "",
-                orderNumber = receiptData.orderNumber ?: "",
-                items = receiptData.items.map { item ->
-                    EditableReceiptItem(
-                        name = item.name,
-                        price = item.price?.toString() ?: "",
-                        quantity = item.quantity?.toString() ?: "",
-                        subtotal = item.subtotal?.toString() ?: ""
-                    )
-                },
-                sourceApp = receiptData.sourceApp ?: ""
-            )
-        }
 
         fun empty(): EditableReceipt {
             return EditableReceipt(

@@ -8,17 +8,15 @@ import org.caojun.shotocr.classification.repository.CategoryRuleRepository
  */
 object CategoryClassifier {
 
-    suspend fun suggest(storeName: String?, itemNames: List<String>, rawText: String?): String? =
-        classify(storeName, itemNames, rawText, CategoryRuleRepository.loadRules())
+    suspend fun suggest(storeName: String?, rawText: String?): String? =
+        classify(storeName, rawText, CategoryRuleRepository.loadRules())
 
     fun classify(
         storeName: String?,
-        itemNames: List<String>,
         rawText: String?,
         rules: List<CategoryRule>
     ): String? {
         matchIn(storeName, rules)?.let { return it }
-        itemNames.forEach { name -> matchIn(name, rules)?.let { return it } }
         matchIn(rawText, rules)?.let { return it }
         return null
     }

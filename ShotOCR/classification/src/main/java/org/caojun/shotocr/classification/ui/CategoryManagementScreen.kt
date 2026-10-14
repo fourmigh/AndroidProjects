@@ -46,6 +46,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
@@ -65,8 +66,6 @@ import androidx.compose.material3.Slider
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import org.caojun.shotocr.classification.classifier.CategoryRule
-import org.caojun.shotocr.classification.classifier.CategoryTextMatcher
-import org.caojun.shotocr.database.category.DefaultCategories
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -104,7 +103,7 @@ fun CategoryManagementScreen(
             emptySet()
         } else {
             categories
-                .filter { scoreOf(context, it, query, rules) >= threshold }
+                .filter { categoryScore(context, it, query, rules) >= threshold }
                 .map { it.id }
                 .toSet()
         }
@@ -362,6 +361,8 @@ private fun CategoryGroupCard(
                     } else {
                         MaterialTheme.colorScheme.onSurface
                     },
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
                 )
                 IconButton(onClick = { onAddChild() }) {
@@ -423,6 +424,8 @@ private fun CategoryGroupCard(
                                 } else {
                                     MaterialTheme.colorScheme.onSurface
                                 },
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.weight(1f)
                             )
                             IconButton(onClick = { onEditKeywords(child) }) {
@@ -590,30 +593,4 @@ private fun CategoryKeywordsDialog(
     )
 }
 
-/** 分类的显示名（与 Category.displayName() 同逻辑，供非 Composable 环境使用）。 */
-private fun categoryDisplayName(context: Context, category: Category): String {
-    val lang = Locale.getDefault().language
-    category.names[lang]?.let { return it }
-    category.names.values.firstOrNull()?.let { return it }
-    if (category.isDefault) {
-        DefaultCategories.nameResId(category.id)?.let { return context.getString(it) }
-    }
-    return category.name
-}
 
-/** 计算分类与搜索词的匹配分：名称相似度 与 关键词别名 取较大者。 */
-private fun scoreOf(
-    context: Context,
-    category: Category,
-    query: String,
-    rules: List<CategoryRule>
-): Double {
-    val nameScore = CategoryTextMatcher.nameScore(query, categoryDisplayName(context, category))
-    val aliasHit = rules.any { rule ->
-        rule.categoryId == category.id && rule.keywords.any { keyword ->
-            keyword.isNotBlank() &&
-                (keyword.contains(query, ignoreCase = true) || query.contains(keyword, ignoreCase = true))
-        }
-    }
-    return maxOf(nameScore, if (aliasHit) 1.0 else 0.0)
-}

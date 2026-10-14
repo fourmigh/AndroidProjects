@@ -21,15 +21,7 @@ class CategoryClassifierTest {
     fun classify_matchesStoreName() {
         assertEquals(
             "entertainment.dining",
-            CategoryClassifier.classify("肯德基(上海塘桥餐厅", emptyList(), null, rules)
-        )
-    }
-
-    @Test
-    fun classify_matchesItemName() {
-        assertEquals(
-            "transport.public",
-            CategoryClassifier.classify("某商户", listOf("地铁出行"), null, rules)
+            CategoryClassifier.classify("肯德基(上海塘桥餐厅", null, rules)
         )
     }
 
@@ -37,7 +29,7 @@ class CategoryClassifierTest {
     fun classify_matchesRawText() {
         assertEquals(
             "shopping.fuel",
-            CategoryClassifier.classify(null, emptyList(), "中石化加油站", rules)
+            CategoryClassifier.classify(null, "中石化加油站", rules)
         )
     }
 
@@ -45,13 +37,13 @@ class CategoryClassifierTest {
     fun classify_storeNameHasPriorityOverRawText() {
         assertEquals(
             "health.pharmacy",
-            CategoryClassifier.classify("大药房", emptyList(), "地铁站附近", rules)
+            CategoryClassifier.classify("大药房", "地铁站附近", rules)
         )
     }
 
     @Test
     fun classify_returnsNullWhenNoMatch() {
-        assertNull(CategoryClassifier.classify("某某公司", listOf("服务费"), "无关键词", rules))
+        assertNull(CategoryClassifier.classify("某某公司", "无关键词", rules))
     }
 
     private val defaultRules: List<CategoryRule> =
@@ -59,16 +51,16 @@ class CategoryClassifierTest {
 
     @Test
     fun classify_defaultRules_newCategories() {
-        assertEquals("shopping.clothing", CategoryClassifier.classify("优衣库", emptyList(), null, defaultRules))
-        assertEquals("shopping.daily", CategoryClassifier.classify("名创优品", emptyList(), null, defaultRules))
-        assertEquals("shopping.digital", CategoryClassifier.classify("小米之家", emptyList(), null, defaultRules))
-        assertEquals("life.beauty", CategoryClassifier.classify("理发店", emptyList(), null, defaultRules))
-        assertEquals("life.housekeeping", CategoryClassifier.classify(null, emptyList(), "家政保洁服务", defaultRules))
-        assertEquals("life.laundry", CategoryClassifier.classify(null, emptyList(), "干洗店", defaultRules))
-        assertEquals("transport.travel", CategoryClassifier.classify("携程酒店", emptyList(), null, defaultRules))
-        assertEquals("entertainment.parenting", CategoryClassifier.classify(null, emptyList(), "亲子游乐", defaultRules))
-        assertEquals("digital_services.ai", CategoryClassifier.classify(null, emptyList(), "ChatGPT 订阅续费", defaultRules))
-        assertEquals("digital_services.cloud", CategoryClassifier.classify("阿里云", emptyList(), null, defaultRules))
+        assertEquals("shopping.clothing", CategoryClassifier.classify("优衣库", null, defaultRules))
+        assertEquals("shopping.daily", CategoryClassifier.classify("名创优品", null, defaultRules))
+        assertEquals("shopping.digital", CategoryClassifier.classify("小米之家", null, defaultRules))
+        assertEquals("life.beauty", CategoryClassifier.classify("理发店", null, defaultRules))
+        assertEquals("life.housekeeping", CategoryClassifier.classify(null, "家政保洁服务", defaultRules))
+        assertEquals("life.laundry", CategoryClassifier.classify(null, "干洗店", defaultRules))
+        assertEquals("transport.travel", CategoryClassifier.classify("携程酒店", null, defaultRules))
+        assertEquals("entertainment.parenting", CategoryClassifier.classify(null, "亲子游乐", defaultRules))
+        assertEquals("digital_services.ai", CategoryClassifier.classify(null, "ChatGPT 订阅续费", defaultRules))
+        assertEquals("digital_services.cloud", CategoryClassifier.classify("阿里云", null, defaultRules))
     }
 
     private val taobaoBikeRawText = """
@@ -95,7 +87,7 @@ class CategoryClassifierTest {
     fun classify_defaultRules_sharedBike() {
         assertEquals(
             "transport.bike",
-            CategoryClassifier.classify("茉莉的卡券快充", emptyList(), taobaoBikeRawText, defaultRules)
+            CategoryClassifier.classify("茉莉的卡券快充", taobaoBikeRawText, defaultRules)
         )
     }
 

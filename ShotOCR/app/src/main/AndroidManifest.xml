@@ -51,6 +51,12 @@
             android:exported="false"
             android:label="@string/category_management_title"
             android:theme="@style/Theme.ShotOCR" />
+
+        <activity
+            android:name=".RecognitionSettingsActivity"
+            android:exported="false"
+            android:label="@string/recognition_settings"
+            android:theme="@style/Theme.ShotOCR" />
     </application>
 
 </manifest>

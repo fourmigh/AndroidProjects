@@ -40,5 +40,6 @@
 
     <!-- 搜索 -->
     <string name="category_search_hint">搜索分类</string>
+    <string name="category_search_empty">无匹配结果</string>
     <string name="category_search_threshold">相似度阈值</string>
 </resources>

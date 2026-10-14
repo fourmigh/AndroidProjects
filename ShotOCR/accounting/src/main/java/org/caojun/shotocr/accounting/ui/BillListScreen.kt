@@ -19,6 +19,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
@@ -243,7 +244,10 @@ private fun SummaryCard(
                 Text(
                     text = title,
                     fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
                 )
                 if (expandable) {
                     Text(
@@ -315,22 +319,43 @@ fun BillCard(receipt: EditableReceipt, index: Int) {
                 )
             }
     ) {
-        Row(
-            modifier = Modifier.padding(12.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
+        Column(modifier = Modifier.padding(12.dp)) {
             val thumbnailBitmap = remember(receipt.screenshotImage) {
                 receipt.screenshotImage?.let { bytes ->
                     BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
                 }
             }
 
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (receipt.storeName.isNotEmpty()) receipt.storeName
+                    else stringResource(R.string.record_number, index + 1),
+                    fontSize = 16.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                TextButton(onClick = {
+                    showDeleteDialog = true
+                }) {
+                    Text(
+                        stringResource(R.string.delete),
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+
             if (thumbnailBitmap != null) {
+                Spacer(modifier = Modifier.height(4.dp))
                 Image(
                     bitmap = thumbnailBitmap.asImageBitmap(),
                     contentDescription = null,
                     modifier = Modifier
-                        .size(80.dp)
+                        .fillMaxWidth()
+                        .height(120.dp)
                         .clickable {
                             context.startActivity(
                                 Intent(context, ConfirmActivity::class.java).apply {
@@ -342,68 +367,44 @@ fun BillCard(receipt: EditableReceipt, index: Int) {
                 )
             }
 
-            Column(
-                modifier = Modifier.weight(1f)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = if (receipt.storeName.isNotEmpty()) receipt.storeName
-                        else stringResource(R.string.record_number, index + 1),
-                        fontSize = 16.sp
-                    )
-                    TextButton(onClick = {
-                        showDeleteDialog = true
-                    }) {
-                        Text(
-                            stringResource(R.string.delete),
-                            color = MaterialTheme.colorScheme.error
-                        )
-                    }
-                }
+            Spacer(modifier = Modifier.height(4.dp))
 
-                Spacer(modifier = Modifier.height(4.dp))
-
-                if (receipt.amount.isNotEmpty()) {
-                    Text(
-                        text = stringResource(R.string.paid_amount, receipt.amount),
-                        fontSize = 14.sp
-                    )
-                }
-                if (receipt.discount.isNotEmpty()) {
-                    Text(
-                        text = stringResource(R.string.discount_display, receipt.discount),
-                        fontSize = 14.sp
-                    )
-                }
-                if (receipt.paymentTime.isNotEmpty()) {
-                    Text(
-                        text = stringResource(R.string.payment_time_display, receipt.paymentTime),
-                        fontSize = 14.sp
-                    )
-                }
-                if (receipt.paymentMethod.isNotEmpty()) {
-                    Text(
-                        text = stringResource(R.string.payment_method_display, receipt.paymentMethod),
-                        fontSize = 14.sp
-                    )
-                }
-                if (receipt.sourceApp.isNotEmpty()) {
-                    Text(
-                        text = stringResource(R.string.source_app_display, receipt.sourceApp),
-                        fontSize = 14.sp
-                    )
-                }
-                if (receipt.orderNumber.isNotEmpty()) {
-                    Text(
-                        text = stringResource(R.string.order_number_display, receipt.orderNumber),
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+            if (receipt.amount.isNotEmpty()) {
+                Text(
+                    text = stringResource(R.string.paid_amount, receipt.amount),
+                    fontSize = 14.sp
+                )
+            }
+            if (receipt.discount.isNotEmpty()) {
+                Text(
+                    text = stringResource(R.string.discount_display, receipt.discount),
+                    fontSize = 14.sp
+                )
+            }
+            if (receipt.paymentTime.isNotEmpty()) {
+                Text(
+                    text = stringResource(R.string.payment_time_display, receipt.paymentTime),
+                    fontSize = 14.sp
+                )
+            }
+            if (receipt.paymentMethod.isNotEmpty()) {
+                Text(
+                    text = stringResource(R.string.payment_method_display, receipt.paymentMethod),
+                    fontSize = 14.sp
+                )
+            }
+            if (receipt.sourceApp.isNotEmpty()) {
+                Text(
+                    text = stringResource(R.string.source_app_display, receipt.sourceApp),
+                    fontSize = 14.sp
+                )
+            }
+            if (receipt.orderNumber.isNotEmpty()) {
+                Text(
+                    text = stringResource(R.string.order_number_display, receipt.orderNumber),
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }

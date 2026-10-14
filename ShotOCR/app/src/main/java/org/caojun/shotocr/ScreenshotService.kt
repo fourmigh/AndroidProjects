@@ -7,7 +7,6 @@ import android.content.Intent
 import android.graphics.BitmapFactory
 import android.os.IBinder
 import android.util.Log
-import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
@@ -18,13 +17,19 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.caojun.shotocr.monitor.ScreenshotMonitor
 import org.caojun.shotocr.ocr.OcrEngine
-import org.caojun.shotocr.parser.ConfigurableReceiptParser
-import org.caojun.shotocr.parser.DataParser
-import org.caojun.shotocr.parser.ReceiptData
-import org.caojun.shotocr.parser.ReceiptParseConfig
-import org.caojun.shotocr.parser.ReceiptParser
+import org.caojun.shotocr.llm.Correction
+import org.caojun.shotocr.llm.LlmModelMissingException
+import org.caojun.shotocr.llm.LlmReceiptEngine
+import org.caojun.shotocr.llm.LlmReceiptParser
+import org.caojun.shotocr.llm.LlmStores
+import org.caojun.shotocr.llm.PlatformDetector
+import org.caojun.shotocr.llm.SystemPromptProvider
 import org.caojun.shotocr.database.data.AppDatabase
+import org.caojun.shotocr.accounting.CorrectionHooks
 import org.caojun.shotocr.accounting.ui.ConfirmActivity
+import org.caojun.shotocr.processing.ProcessStep
+import org.caojun.shotocr.processing.ProcessingProgress
+import org.caojun.shotocr.processing.RunState
 import org.caojun.shotocr.util.ForegroundAppResolver
 
 class ScreenshotService : LifecycleService() {
@@ -36,12 +41,30 @@ class ScreenshotService : LifecycleService() {
         private const val NOTIFICATION_ID = 1001
         private const val NOTIFICATION_ID_CONFIRM = 1002
         private const val NOTIFICATION_ID_DUPLICATE = 1003
+        private const val NOTIFICATION_ID_RESULT = 1004
+        private const val NOTIFICATION_ID_PROGRESS = 1005
+        private const val DEDUPE_WINDOW_MS = 10_000L
+        private const val DEDUPE_CACHE_SIZE = 50
         private val TIME_COMPONENT_REGEX = Regex("""\d{1,2}:\d{2}:\d{2}""")
     }
 
     private var monitor: ScreenshotMonitor? = null
     private var ocrEngine: OcrEngine? = null
-    private var parser: DataParser<ReceiptData> = ReceiptParser()
+    private var parser: LlmReceiptParser? = null
+    private var promptProvider: SystemPromptProvider? = null
+
+    /** 正在处理的截图 uri（防止同一张被并发处理）。 */
+    private val inFlightUris = java.util.Collections.newSetFromMap(
+        java.util.concurrent.ConcurrentHashMap<String, Boolean>()
+    )
+
+    /** 最近处理过的截图 uri → 完成时间（防止同一张被重复处理）。 */
+    private val recentlyProcessedUris = java.util.Collections.synchronizedMap(
+        object : LinkedHashMap<String, Long>(DEDUPE_CACHE_SIZE, 0.75f, true) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Long>?): Boolean =
+                size > DEDUPE_CACHE_SIZE
+        }
+    )
 
     override fun onCreate() {
         super.onCreate()
@@ -54,38 +77,47 @@ class ScreenshotService : LifecycleService() {
         ocrEngine = OcrEngine(applicationContext)
         Log.d(TAG, "onCreate - OcrEngine created")
 
-        lifecycleScope.launch {
-            val config = withContext(Dispatchers.IO) {
-                try {
-                    AppDatabase.getInstance(applicationContext).parserConfigDao().getDefault()?.toConfig()
-                } catch (e: Exception) {
-                    Log.w(TAG, "onCreate - Failed to load parser config, using defaults", e)
-                    null
-                }
-            }
-            parser = ConfigurableReceiptParser(config ?: ReceiptParseConfig.default())
-            Log.d(TAG, "onCreate - Parser initialized: ${if (config == null) "default" else "configured"}")
+        CorrectionHooks.remember = { rawText, correctedJson ->
+            val platformId = PlatformDetector.detect(null, rawText)?.id ?: "generic"
+            LlmStores.correctionStore(applicationContext).add(Correction(rawText, correctedJson, platformId))
         }
-        Log.d(TAG, "onCreate - Config loader started")
+
+        lifecycleScope.launch {
+            val engine = LlmReceiptEngine.get(applicationContext)
+            val provider = SystemPromptProvider(
+                LlmStores.promptStore(applicationContext),
+                LlmStores.customPlatformStore(applicationContext),
+                LlmStores.correctionStore(applicationContext)
+            )
+            promptProvider = provider
+            parser = LlmReceiptParser(engine, provider)
+            try {
+                withContext(Dispatchers.Default) { engine.initialize() }
+                Log.d(TAG, "onCreate - LLM parser ready")
+            } catch (e: Exception) {
+                Log.e(TAG, "onCreate - LLM engine init failed", e)
+            }
+        }
+        Log.d(TAG, "onCreate - LLM parser loader started")
 
         monitor = ScreenshotMonitor(applicationContext).also {
             it.start()
             Log.d(TAG, "onCreate - ScreenshotMonitor started")
+        }
+
+        // 只收集一次，避免 onStartCommand 被多次调用时产生多个收集者并发处理同一截图。
+        lifecycleScope.launch {
+            Log.d(TAG, "onCreate - Starting to collect screenshots flow")
+            monitor?.screenshots?.collect { screenshot ->
+                Log.d(TAG, "Screenshot event received: ${screenshot.displayName}, uri=${screenshot.uri}")
+                processScreenshot(screenshot.uri.toString(), screenshot.timestamp)
+            }
         }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
         Log.d(TAG, "onStartCommand: flags=$flags, startId=$startId")
-        
-        lifecycleScope.launch {
-            Log.d(TAG, "onStartCommand - Starting to collect screenshots flow")
-            monitor?.screenshots?.collect { screenshot ->
-                Log.d(TAG, "Screenshot event received: ${screenshot.displayName}, uri=${screenshot.uri}")
-                processScreenshot(screenshot.uri.toString(), screenshot.timestamp)
-            }
-        }
-        
         return START_STICKY
     }
 
@@ -106,10 +138,73 @@ class ScreenshotService : LifecycleService() {
     private fun hasTimeComponent(paymentTime: String?): Boolean =
         !paymentTime.isNullOrEmpty() && TIME_COMPONENT_REGEX.containsMatchIn(paymentTime)
 
+    private fun mainPendingIntent(): PendingIntent = PendingIntent.getActivity(
+        this,
+        0,
+        Intent(this, MainActivity::class.java),
+        PendingIntent.FLAG_IMMUTABLE
+    )
+
+    /** 更新独立的"进度"通知，并同步进度状态（常驻监听通知 1001 不受影响）。 */
+    private fun updateProgress(step: ProcessStep, detail: String? = null) {
+        ProcessingProgress.update(step, RunState.RUNNING, detail)
+        val text = detail ?: getString(step.labelRes)
+        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle(getString(R.string.notification_title))
+            .setContentText(text)
+            .setSmallIcon(android.R.drawable.ic_menu_camera)
+            .setContentIntent(mainPendingIntent())
+            .setOnlyAlertOnce(true)
+            .setProgress(ProcessStep.TOTAL, step.weight, false)
+            .build()
+        getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID_PROGRESS, notification)
+    }
+
+    /** 处理结束：清除进度状态并取消进度通知（常驻监听通知 1001 始终保留）。 */
+    private fun clearProgress() {
+        ProcessingProgress.reset()
+        getSystemService(NotificationManager::class.java).cancel(NOTIFICATION_ID_PROGRESS)
+    }
+
+    private fun llmErrorMessage(e: Exception): String =
+        if (e is LlmModelMissingException) {
+            getString(R.string.error_model_missing, e.assetName.substringAfterLast('/'))
+        } else {
+            e.message ?: e.javaClass.simpleName
+        }
+
+    /** 处理失败：发结果通知并清除进度。 */
+    private fun notifyFailure(step: ProcessStep, message: String?) {
+        ProcessingProgress.update(step, RunState.FAILED, error = message)
+        val text = getString(R.string.progress_failed, getString(step.labelRes), message ?: "")
+        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle(getString(R.string.notification_title))
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setSmallIcon(android.R.drawable.ic_menu_camera)
+            .setContentIntent(mainPendingIntent())
+            .setAutoCancel(true)
+            .build()
+        getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID_RESULT, notification)
+        clearProgress()
+    }
+
     private suspend fun processScreenshot(uriString: String, timestamp: Long) {
+        val now = System.currentTimeMillis()
+        recentlyProcessedUris[uriString]?.let { finishedAt ->
+            if (now - finishedAt < DEDUPE_WINDOW_MS) {
+                Log.d(TAG, "processScreenshot: Skip recently processed uri=$uriString")
+                return
+            }
+        }
+        if (!inFlightUris.add(uriString)) {
+            Log.d(TAG, "processScreenshot: Skip already processing uri=$uriString")
+            return
+        }
         try {
             Log.d(TAG, "processScreenshot: Starting processing for $uriString")
             val uri = android.net.Uri.parse(uriString)
+            updateProgress(ProcessStep.RESOLVING_SOURCE)
 
             val foregroundPackage = withContext(Dispatchers.IO) {
                 ForegroundAppResolver.getForegroundPackage(applicationContext, timestamp)
@@ -120,6 +215,10 @@ class ScreenshotService : LifecycleService() {
                 }
             }
             Log.d(TAG, "processScreenshot: foregroundPackage=$foregroundPackage, foregroundLabel=$foregroundLabel")
+            updateProgress(
+                ProcessStep.LOADING_IMAGE,
+                foregroundLabel?.let { getString(R.string.progress_detail_source, it) }
+            )
 
             Log.d(TAG, "processScreenshot: Loading bitmap from URI (with retry)")
             var bitmap: android.graphics.Bitmap? = null
@@ -148,21 +247,25 @@ class ScreenshotService : LifecycleService() {
                 }
                 if (attempt < maxRetries) {
                     Log.d(TAG, "processScreenshot: Retrying in ${retryDelayMs}ms (attempt $attempt/$maxRetries)")
+                    updateProgress(
+                        ProcessStep.LOADING_IMAGE,
+                        getString(R.string.step_loading_image_retry, attempt, maxRetries)
+                    )
                     delay(retryDelayMs)
                 }
             }
 
             if (bitmap == null) {
                 Log.e(TAG, "processScreenshot: Failed to load bitmap after $maxRetries attempts for $uriString")
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(this@ScreenshotService, getString(R.string.error_load_screenshot), Toast.LENGTH_LONG).show()
-                }
+                notifyFailure(ProcessStep.LOADING_IMAGE, getString(R.string.error_load_screenshot))
                 return
             }
             Log.d(TAG, "processScreenshot: Bitmap loaded: ${bitmap.width}x${bitmap.height}")
 
             Log.d(TAG, "processScreenshot: Initializing OCR engine")
+            updateProgress(ProcessStep.OCR_INIT)
             ocrEngine?.initialize()
+            updateProgress(ProcessStep.OCR_RECOGNIZE)
             Log.d(TAG, "processScreenshot: Running OCR detection")
             val ocrResults = try {
                 ocrEngine?.detect(bitmap)
@@ -177,10 +280,38 @@ class ScreenshotService : LifecycleService() {
             val fullText = ocrResults?.joinToString("\n") { it.text } ?: ""
             Log.d(TAG, "processScreenshot: OCR text: ${fullText.take(200)}...")
 
-            val receiptData = parser.parse(fullText)
+            updateProgress(ProcessStep.AI_LOADING, getString(R.string.progress_detail_ai_loading))
+            val activeParser = parser
+            val engine = LlmReceiptEngine.get(applicationContext)
+            try {
+                withContext(Dispatchers.Default) { engine.initialize() }
+            } catch (e: Exception) {
+                Log.e(TAG, "processScreenshot: LLM load failed", e)
+                notifyFailure(ProcessStep.AI_LOADING, llmErrorMessage(e))
+                return
+            }
+            updateProgress(
+                ProcessStep.AI_PARSING,
+                getString(R.string.progress_detail_ocr, ocrResults?.size ?: 0)
+            )
+            val receiptData = try {
+                withContext(Dispatchers.Default) {
+                    val provider = promptProvider ?: SystemPromptProvider(
+                        LlmStores.promptStore(applicationContext),
+                        LlmStores.customPlatformStore(applicationContext),
+                        LlmStores.correctionStore(applicationContext)
+                    ).also { promptProvider = it }
+                    (activeParser ?: LlmReceiptParser(engine, provider)).parse(fullText, foregroundLabel)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "processScreenshot: LLM parse failed", e)
+                notifyFailure(ProcessStep.AI_PARSING, e.message ?: e.javaClass.simpleName)
+                return
+            }
             val sourceApp = foregroundLabel ?: receiptData.sourceApp
-            Log.d(TAG, "processScreenshot: Parsed receipt: amount=${receiptData.amount}, discount=${receiptData.discount}, items=${receiptData.items.size}, sourceApp=$sourceApp")
+            Log.d(TAG, "processScreenshot: Parsed receipt: amount=${receiptData.amount}, discount=${receiptData.discount}, sourceApp=$sourceApp")
 
+            updateProgress(ProcessStep.DEDUP)
             val orderNumber = receiptData.orderNumber
             val paymentTime = receiptData.paymentTime
             val appKey = sourceApp ?: ""
@@ -194,7 +325,9 @@ class ScreenshotService : LifecycleService() {
             Log.d(TAG, "processScreenshot: orderNumber=$orderNumber, paymentTime=$paymentTime, duplicateId=$duplicateId")
 
             if (duplicateId != null) {
+                updateProgress(ProcessStep.DONE, getString(R.string.progress_duplicate))
                 notifyDuplicateReceipt(uriString, duplicateId)
+                clearProgress()
                 return
             }
 
@@ -209,23 +342,16 @@ class ScreenshotService : LifecycleService() {
                 putExtra("payment_method", receiptData.paymentMethod ?: "")
                 putExtra("order_number", receiptData.orderNumber ?: "")
                 putExtra("source_app", sourceApp ?: "")
-
-                val names = ArrayList(receiptData.items.map { it.name })
-                val prices = ArrayList(receiptData.items.map { it.price?.toString() ?: "" })
-                val quantities = ArrayList(receiptData.items.map { it.quantity?.toString() ?: "" })
-                putStringArrayListExtra("item_names", names)
-                putStringArrayListExtra("item_prices", prices)
-                putStringArrayListExtra("item_quantities", quantities)
             }
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-            
+
             val pendingIntent = PendingIntent.getActivity(
                 this,
                 NOTIFICATION_ID_CONFIRM,
                 intent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
-            
+
             val confirmNotification = NotificationCompat.Builder(this, CHANNEL_ID_HIGH)
                 .setContentTitle(getString(R.string.notification_title))
                 .setContentText(getString(R.string.screenshot_recognized))
@@ -234,15 +360,20 @@ class ScreenshotService : LifecycleService() {
                 .setAutoCancel(true)
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .build()
-            
+
+            updateProgress(ProcessStep.DONE, getString(R.string.progress_done))
             val manager = getSystemService(NotificationManager::class.java)
             manager.notify(NOTIFICATION_ID_CONFIRM, confirmNotification)
+            clearProgress()
             Log.d(TAG, "processScreenshot: Confirm notification sent")
         } catch (e: Exception) {
             Log.e(TAG, "processScreenshot: Error processing screenshot", e)
-            withContext(Dispatchers.Main) {
-                Toast.makeText(this@ScreenshotService, getString(R.string.error_occurred, e.message ?: e.javaClass.simpleName), Toast.LENGTH_LONG).show()
-            }
+            val step = ProcessingProgress.state.value.step
+                .takeIf { it != ProcessStep.IDLE } ?: ProcessStep.FAILED
+            notifyFailure(step, e.message ?: e.javaClass.simpleName)
+        } finally {
+            inFlightUris.remove(uriString)
+            recentlyProcessedUris[uriString] = System.currentTimeMillis()
         }
     }
 
@@ -298,18 +429,11 @@ class ScreenshotService : LifecycleService() {
     }
 
     private fun buildNotification(): android.app.Notification {
-        val pendingIntent = PendingIntent.getActivity(
-            this,
-            0,
-            Intent(this, MainActivity::class.java),
-            PendingIntent.FLAG_IMMUTABLE
-        )
-
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(getString(R.string.notification_title))
             .setContentText(getString(R.string.notification_listening))
             .setSmallIcon(android.R.drawable.ic_menu_camera)
-            .setContentIntent(pendingIntent)
+            .setContentIntent(mainPendingIntent())
             .setOngoing(true)
             .build()
     }

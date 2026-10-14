@@ -40,5 +40,6 @@
 
     <!-- Search -->
     <string name="category_search_hint">Search categories</string>
+    <string name="category_search_empty">No matching results</string>
     <string name="category_search_threshold">Similarity threshold</string>
 </resources>

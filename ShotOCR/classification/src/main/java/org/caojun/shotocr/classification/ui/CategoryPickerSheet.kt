@@ -14,29 +14,36 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.caojun.shotocr.classification.R
+import org.caojun.shotocr.classification.classifier.CategoryRule
 import org.caojun.shotocr.classification.model.Category
 import org.caojun.shotocr.classification.model.CategoryGroup
 import org.caojun.shotocr.classification.model.toGroups
 import org.caojun.shotocr.classification.repository.CategoryRepository
+import org.caojun.shotocr.classification.repository.CategoryRuleRepository
 
 /**
  * 账单分类选择卡片。显示当前分类，点击弹出选择面板。
@@ -75,7 +82,10 @@ fun CategorySelectField(
             Text(
                 text = currentName,
                 style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.primary
+                color = MaterialTheme.colorScheme.primary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
             )
             Text(
                 text = stringResource(R.string.category_tap_to_edit),
@@ -108,35 +118,83 @@ fun CategoryPickerSheet(
     onSelect: (String) -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState()
+    val context = LocalContext.current
+    var searchText by remember { mutableStateOf("") }
+    var rules by remember { mutableStateOf<List<CategoryRule>>(emptyList()) }
 
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(max = 520.dp),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp)
-        ) {
-            groups.forEach { group ->
-                item(key = "group-${group.category.id}") {
-                    Text(
-                        text = group.category.displayName(),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(top = 16.dp, bottom = 6.dp)
-                    )
+    LaunchedEffect(Unit) {
+        rules = CategoryRuleRepository.loadRules()
+    }
+
+    val query = searchText.trim()
+    val visibleGroups = remember(query, groups, rules) {
+        if (query.isEmpty()) {
+            groups
+        } else {
+            groups.mapNotNull { group ->
+                val matchedChildren = group.children.filter { child ->
+                    categoryScore(context, child, query, rules) >= CATEGORY_SEARCH_THRESHOLD
                 }
-                items(group.children, key = { it.id }) { child ->
-                    CategoryPickerRow(
-                        category = child,
-                        selected = child.id == selectedId,
-                        onClick = { onSelect(child.id) }
-                    )
+                val groupMatches = categoryScore(context, group.category, query, rules) >= CATEGORY_SEARCH_THRESHOLD
+                if (groupMatches || matchedChildren.isNotEmpty()) {
+                    group.copy(children = matchedChildren.ifEmpty { group.children })
+                } else {
+                    null
                 }
             }
-            item {
-                Spacer(modifier = Modifier.height(24.dp))
+        }
+    }
+
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            OutlinedTextField(
+                value = searchText,
+                onValueChange = { searchText = it },
+                label = { Text(stringResource(R.string.category_search_hint)) },
+                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                singleLine = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            )
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 480.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                if (visibleGroups.isEmpty()) {
+                    item {
+                        Text(
+                            text = stringResource(R.string.category_search_empty),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.outline,
+                            modifier = Modifier.padding(vertical = 16.dp)
+                        )
+                    }
+                }
+                visibleGroups.forEach { group ->
+                    item(key = "group-${group.category.id}") {
+                        Text(
+                            text = group.category.displayName(),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(top = 16.dp, bottom = 6.dp)
+                        )
+                    }
+                    items(group.children, key = { it.id }) { child ->
+                        CategoryPickerRow(
+                            category = child,
+                            selected = child.id == selectedId,
+                            onClick = { onSelect(child.id) }
+                        )
+                    }
+                }
+                item {
+                    Spacer(modifier = Modifier.height(24.dp))
+                }
             }
         }
     }
@@ -164,7 +222,10 @@ private fun CategoryPickerRow(
             } else {
                 MaterialTheme.colorScheme.onSurface
             },
-            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
         )
         if (selected) {
             Icon(

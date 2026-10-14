@@ -31,9 +31,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import org.caojun.shotocr.accounting.AccountingManager
+import org.caojun.shotocr.accounting.CorrectionHooks
 import org.caojun.shotocr.accounting.ui.BillListActivity
 import org.caojun.shotocr.classification.repository.CategoryRepository
-import org.caojun.shotocr.parser.ui.ParserConfigActivity
+import org.caojun.shotocr.llm.Correction
+import org.caojun.shotocr.llm.LlmStores
+import org.caojun.shotocr.llm.PlatformDetector
 import org.caojun.shotocr.ui.theme.ShotOCRTheme
 import org.caojun.shotocr.util.ForegroundAppResolver
 
@@ -49,6 +52,10 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         AccountingManager.init(this)
         CategoryRepository.init(this)
+        CorrectionHooks.remember = { rawText, correctedJson ->
+            val platformId = PlatformDetector.detect(null, rawText)?.id ?: "generic"
+            LlmStores.correctionStore(applicationContext).add(Correction(rawText, correctedJson, platformId))
+        }
         setContent {
             ShotOCRTheme {
                 MainScreen()
@@ -210,6 +217,11 @@ fun MainScreen() {
                             )
                             Text(
                                 text = stringResource(R.string.principle_point_5),
+                                fontSize = 14.sp,
+                                modifier = Modifier.padding(bottom = 4.dp)
+                            )
+                            Text(
+                                text = stringResource(R.string.principle_point_6),
                                 fontSize = 14.sp
                             )
                         }
@@ -356,42 +368,52 @@ fun MainScreen() {
 
             Spacer(modifier = Modifier.weight(1f))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Button(
-                    onClick = {
-                        context.startActivity(Intent(context, BillListActivity::class.java))
-                    },
-                    modifier = Modifier.weight(1f)
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(stringResource(R.string.view_records))
+                    Button(
+                        onClick = {
+                            context.startActivity(Intent(context, BillListActivity::class.java))
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(stringResource(R.string.view_records))
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            context.startActivity(Intent(context, ClassificationManagementActivity::class.java))
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(stringResource(org.caojun.shotocr.classification.R.string.category_entry))
+                    }
                 }
 
-                OutlinedButton(
-                    onClick = {
-                        context.startActivity(Intent(context, ClassificationManagementActivity::class.java))
-                    },
-                    modifier = Modifier.weight(1f)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(stringResource(org.caojun.shotocr.classification.R.string.category_entry))
-                }
+                    OutlinedButton(
+                        onClick = {
+                            context.startActivity(Intent(context, RecognitionSettingsActivity::class.java))
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(stringResource(R.string.recognition_settings))
+                    }
 
-                OutlinedButton(
-                    onClick = {
-                        context.startActivity(Intent(context, ParserConfigActivity::class.java))
-                    },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text(stringResource(R.string.parser_config))
+                    // 占位，使按钮与上一行第一列等宽对齐（表格样式）
+                    Spacer(modifier = Modifier.weight(1f))
                 }
             }
 
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "Powered by ONNX Runtime + OpenCV",
+                text = stringResource(R.string.powered_by),
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.outline,
                 modifier = Modifier.align(Alignment.CenterHorizontally)

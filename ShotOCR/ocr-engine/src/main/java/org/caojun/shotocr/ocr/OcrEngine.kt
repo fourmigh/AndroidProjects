@@ -88,7 +88,60 @@ class OcrEngine(private val context: Context) {
             )
         }
 
-        results.sortedBy { it.center.y }
+        mergeRows(results)
+    }
+
+    /**
+     * 把检测框按行聚类：先按 y 排序成行，行内按 x 排序，
+     * 并在横向间距较小时把同一行的文本块合并为一行（用空格连接），
+     * 间距较大时用换行分隔。这样"标签 数值"能回到同一行正确顺序。
+     */
+    private fun mergeRows(results: List<OcrResult>): List<OcrResult> {
+        if (results.isEmpty()) return results
+
+        val sorted = results.sortedBy { it.center.y }
+        val averageHeight = (sorted.sumOf { it.box.height().toDouble() } / sorted.size).toFloat()
+            .coerceAtLeast(1f)
+        val rowThreshold = averageHeight * 0.6f
+        val gapThreshold = averageHeight * 1.5f
+
+        val rows = mutableListOf<MutableList<OcrResult>>()
+        for (result in sorted) {
+            val currentRow = rows.lastOrNull()
+            if (currentRow != null &&
+                Math.abs(result.center.y - currentRow.first().center.y) <= rowThreshold
+            ) {
+                currentRow.add(result)
+            } else {
+                rows.add(mutableListOf(result))
+            }
+        }
+
+        val merged = mutableListOf<OcrResult>()
+        for (row in rows) {
+            val ordered = row.sortedBy { it.center.x }
+            val text = StringBuilder()
+            val box = RectF(ordered.first().box)
+            var previousRight: Float? = null
+            for (item in ordered) {
+                if (previousRight != null) {
+                    val gap = item.box.left - previousRight
+                    text.append(if (gap > gapThreshold) "\n" else " ")
+                }
+                text.append(item.text)
+                box.union(item.box)
+                previousRight = item.box.right
+            }
+            merged.add(
+                OcrResult(
+                    text = text.toString(),
+                    score = ordered.map { it.score }.average().toFloat(),
+                    box = box,
+                    center = PointF((box.left + box.right) / 2f, (box.top + box.bottom) / 2f)
+                )
+            )
+        }
+        return merged
     }
 
     private fun preprocessDet(bitmap: Bitmap): FloatArray {

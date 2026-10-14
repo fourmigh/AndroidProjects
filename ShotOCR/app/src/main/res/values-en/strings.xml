@@ -6,17 +6,18 @@
     <string name="service_stopped">Stopped</string>
     <string name="instructions_title">Instructions</string>
     <string name="instruction_1">1. Make sure the service status above is \"Running\"</string>
-    <string name="instruction_2">2. Take a screenshot on the bill detail page in Alipay or other apps</string>
-    <string name="instruction_3">3. The app will automatically recognize bill amounts and items</string>
+    <string name="instruction_2">2. Take a screenshot on the bill page in Alipay / WeChat / UnionPay / Taobao / JD / Douyin</string>
+    <string name="instruction_3">3. It will automatically recognize amount, discount, original amount, merchant, payment method and order number</string>
     <string name="instruction_4">4. Confirm the information and save the accounting record</string>
     <string name="principle_title">How It Works</string>
     <string name="principle_expand">Expand</string>
     <string name="principle_collapse">Collapse</string>
     <string name="principle_point_1">1. Fully offline: recognition and translation happen on your phone — nothing is uploaded and no network is needed.</string>
-    <string name="principle_point_2">2. Text recognition (OCR): uses the PP-OCRv6 AI model to read text from your screenshot.</string>
-    <string name="principle_point_3">3. It extracts the amount, merchant, time and other details for you.</string>
-    <string name="principle_point_4">4. It suggests the bill category based on the merchant and items.</string>
+    <string name="principle_point_2">2. Text recognition (OCR): uses the PP-OCRv6 model to read text from your screenshot (ONNX Runtime + OpenCV).</string>
+    <string name="principle_point_3">3. Semantic extraction: a local LLM (Qwen3-0.6B, Google LiteRT-LM) understands the text and outputs fields such as amount, discount, original amount, merchant, time, payment method and order number.</string>
+    <string name="principle_point_4">4. It suggests the bill category based on the merchant and receipt content.</string>
     <string name="principle_point_5">5. Offline translation: Chinese-English translation of category names uses the OPUS-MT (Marian) AI model on your device.</string>
+    <string name="principle_point_6">6. Customizable: edit the prompt in "Recognition Settings", or use "remember this correction" to improve recognition without reinstalling.</string>
     <string name="permission_required_title">Permission Required</string>
     <string name="permission_required_desc">Storage permission is needed to read screenshot images. Please grant the permission to enable screenshot monitoring.</string>
     <string name="grant_permission">Grant Permission</string>
@@ -34,8 +35,52 @@
     <string name="duplicate_receipt_notification">This receipt has already been recognized. Tap to view it.</string>
     <string name="error_load_screenshot">Failed to load screenshot, the item may still be pending</string>
     <string name="error_occurred">Error: %1$s</string>
+    <string name="error_model_missing">Model file not found: place %1$s in assets/llm and rebuild the app</string>
     <string name="view_records">View Records</string>
-    <string name="parser_config">Parser Config</string>
     <string name="usage_access_permission_desc">Enable "Usage Access" to automatically detect the source app of a screenshot (e.g. UnionPay, WeChat, Alipay). When disabled, the app is inferred from the text content.</string>
     <string name="grant_usage_access_permission">Enable Usage Access</string>
+    <string name="powered_by">Powered by ONNX Runtime + OpenCV + LiteRT-LM</string>
+
+    <!-- Screenshot processing progress -->
+    <string name="step_idle">Waiting for screenshot</string>
+    <string name="step_resolving_source">Detecting source app</string>
+    <string name="step_loading_image">Loading screenshot</string>
+    <string name="step_loading_image_retry">Waiting for screenshot (%1$d/%2$d)</string>
+    <string name="step_ocr_init">Initializing OCR</string>
+    <string name="step_ocr_recognize">Recognizing text</string>
+    <string name="step_ai_loading">Loading AI model</string>
+    <string name="step_ai_parsing">Parsing with AI</string>
+    <string name="step_dedup">Checking duplicates</string>
+    <string name="step_done">Done</string>
+    <string name="step_failed">Failed</string>
+    <string name="progress_detail_source">Source: %1$s</string>
+    <string name="progress_detail_ocr">%1$d text blocks</string>
+    <string name="progress_detail_ai_loading">Loading model, please wait…</string>
+    <string name="progress_duplicate">Already recognized</string>
+    <string name="progress_done">Recognized, please confirm</string>
+    <string name="progress_failed">%1$s failed: %2$s</string>
+
+    <!-- Recognition settings -->
+    <string name="recognition_settings">Recognition Settings</string>
+    <string name="recognition_back">Back</string>
+    <string name="recognition_platform_title">Platform Prompts</string>
+    <string name="recognition_custom_title">Custom Platforms</string>
+    <string name="recognition_custom_add">Add custom platform</string>
+    <string name="recognition_custom_name">Name</string>
+    <string name="recognition_custom_keywords">Recognition keywords (comma separated)</string>
+    <string name="recognition_custom_prompt">Prompt</string>
+    <string name="recognition_custom_empty">No custom platforms</string>
+    <string name="recognition_custom_edit">Edit</string>
+    <string name="recognition_prompt_title">System Prompt</string>
+    <string name="recognition_prompt_customized">Customized</string>
+    <string name="recognition_prompt_default">Using built-in default</string>
+    <string name="recognition_prompt_count">%1$d chars</string>
+    <string name="recognition_prompt_save">Save</string>
+    <string name="recognition_prompt_reset">Reset to default</string>
+    <string name="recognition_prompt_test">Test current prompt</string>
+    <string name="recognition_prompt_saved">Prompt saved</string>
+    <string name="recognition_corrections_title">Correction Examples</string>
+    <string name="recognition_corrections_clear">Clear</string>
+    <string name="recognition_corrections_empty">No corrections yet</string>
+    <string name="recognition_corrections_delete">Delete</string>
 </resources>

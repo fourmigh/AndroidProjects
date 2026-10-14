@@ -1,6 +1,7 @@
 package org.caojun.shotocr.accounting
 
 import android.content.Context
+import org.caojun.shotocr.prefs.SharedPrefsStore
 import java.time.DayOfWeek
 
 object AccountingSettings {
@@ -8,18 +9,15 @@ object AccountingSettings {
     private const val PREFS_NAME = "accounting_settings"
     private const val KEY_WEEK_START = "week_start"
 
-    private fun prefs(context: Context): android.content.SharedPreferences {
-        return context.applicationContext.getSharedPreferences(
-            PREFS_NAME, Context.MODE_PRIVATE
-        )
-    }
+    private fun store(context: Context) =
+        SharedPrefsStore(context.applicationContext, PREFS_NAME)
 
     fun getWeekStart(context: Context): DayOfWeek {
-        val name = prefs(context).getString(KEY_WEEK_START, DayOfWeek.MONDAY.name)
+        val name = store(context).getString(KEY_WEEK_START, DayOfWeek.MONDAY.name)
         return runCatching { DayOfWeek.valueOf(name!!) }.getOrDefault(DayOfWeek.MONDAY)
     }
 
     fun setWeekStart(context: Context, day: DayOfWeek) {
-        prefs(context).edit().putString(KEY_WEEK_START, day.name).apply()
+        store(context).putString(KEY_WEEK_START, day.name)
     }
 }

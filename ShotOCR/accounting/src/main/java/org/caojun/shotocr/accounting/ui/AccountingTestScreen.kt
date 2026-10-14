@@ -119,12 +119,6 @@ fun RecordCard(receipt: EditableReceipt, index: Int) {
                     fontSize = 14.sp
                 )
             }
-            if (receipt.items.isNotEmpty()) {
-                Text(
-                    text = stringResource(org.caojun.shotocr.accounting.R.string.items_count, receipt.items.size),
-                    fontSize = 14.sp
-                )
-            }
             Text(
                 text = receipt.rawText.take(100) + if (receipt.rawText.length > 100) "..." else "",
                 fontSize = 12.sp,

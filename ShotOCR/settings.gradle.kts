@@ -22,12 +22,12 @@ dependencyResolutionManagement {
 
 rootProject.name = "ShotOCR"
 include(":app")
+include(":prefs")
 include(":ocr-engine")
-include(":data-parser")
 include(":screenshot-monitor")
 include(":accounting")
 include(":database")
-include(":pattern-picker")
 include(":classification")
 include(":translate-engine")
 include(":translate-ui")
+include(":llm-parser")

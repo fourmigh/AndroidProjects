@@ -20,7 +20,7 @@ android {
         }
 
         ndk {
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+            abiFilters += listOf("arm64-v8a")
         }
     }
 
@@ -45,6 +45,7 @@ android {
 
     androidResources {
         noCompress.add("onnx")
+        noCompress.add("litertlm")
     }
 
     packaging {
@@ -63,11 +64,10 @@ dependencies {
     androidTestImplementation(platform(libs.compose.bom))
 
     implementation(project(":ocr-engine"))
-    implementation(project(":data-parser"))
+    implementation(project(":llm-parser"))
     implementation(project(":screenshot-monitor"))
     implementation(project(":accounting"))
     implementation(project(":database"))
-    implementation(project(":pattern-picker"))
     implementation(project(":classification"))
 
     implementation(libs.androidx.core.ktx)

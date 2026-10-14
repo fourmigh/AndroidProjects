@@ -17,8 +17,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.caojun.shotocr.accounting.AccountingManager
+import org.caojun.shotocr.accounting.CorrectionHooks
 import org.caojun.shotocr.accounting.EditableReceipt
-import org.caojun.shotocr.accounting.EditableReceiptItem
 import org.caojun.shotocr.classification.repository.CategoryRepository
 import org.caojun.shotocr.classification.repository.CategoryRuleRepository
 import org.caojun.shotocr.classification.classifier.CategoryClassifier
@@ -76,14 +76,9 @@ class ConfirmActivity : ComponentActivity() {
         val orderNumber = intent.getStringExtra("order_number") ?: ""
         val sourceApp = intent.getStringExtra("source_app") ?: ""
 
-        val names = intent.getStringArrayListExtra("item_names") ?: arrayListOf()
-        val prices = intent.getStringArrayListExtra("item_prices") ?: arrayListOf()
-        val quantities = intent.getStringArrayListExtra("item_quantities") ?: arrayListOf()
-
         loadNewReceipt(
             uriString, rawText, amount, discount, originalAmount,
-            storeName, paymentTime, paymentMethod, orderNumber, sourceApp,
-            names, prices, quantities
+            storeName, paymentTime, paymentMethod, orderNumber, sourceApp
         )
     }
 
@@ -101,7 +96,10 @@ class ConfirmActivity : ComponentActivity() {
                             onDeleteScreenshot = {
                                 deleteUri?.let { deleteScreenshot(it, finishAfter = false) }
                             },
-                            initialDeleteScreenshot = deleteUri != null
+                            initialDeleteScreenshot = deleteUri != null,
+                            onRememberCorrection = { json ->
+                                CorrectionHooks.remember?.invoke(receipt.rawText, json)
+                            }
                         )
                     }
                 }
@@ -126,20 +124,8 @@ class ConfirmActivity : ComponentActivity() {
         paymentTime: String,
         paymentMethod: String,
         orderNumber: String,
-        sourceApp: String,
-        names: ArrayList<String>,
-        prices: ArrayList<String>,
-        quantities: ArrayList<String>
+        sourceApp: String
     ) {
-        val items = names.indices.map { i ->
-            EditableReceiptItem(
-                name = names.getOrElse(i) { "" },
-                price = prices.getOrElse(i) { "" },
-                quantity = quantities.getOrElse(i) { "" },
-                subtotal = ""
-            )
-        }
-
         val screenshotUri = if (uriString.isNotEmpty()) Uri.parse(uriString) else Uri.EMPTY
 
         lifecycleScope.launch {
@@ -147,7 +133,7 @@ class ConfirmActivity : ComponentActivity() {
                 compressImage(screenshotUri)
             } else null
 
-            val suggestedCategoryId = CategoryClassifier.suggest(storeName, names, rawText)
+            val suggestedCategoryId = CategoryClassifier.suggest(storeName, rawText)
 
             val receipt = EditableReceipt(
                 screenshotUri = screenshotUri,
@@ -160,7 +146,6 @@ class ConfirmActivity : ComponentActivity() {
                 paymentTime = paymentTime,
                 paymentMethod = paymentMethod,
                 orderNumber = orderNumber,
-                items = items,
                 sourceApp = sourceApp,
                 categoryId = suggestedCategoryId ?: EditableReceipt.DEFAULT_CATEGORY_ID
             )
@@ -173,7 +158,10 @@ class ConfirmActivity : ComponentActivity() {
                         onCancel = { finish() },
                         onDeleteScreenshot = { deleteScreenshot(receipt.screenshotUri) },
                         askDeleteOnCancel = receipt.screenshotUri != Uri.EMPTY,
-                        autoSuggestedCategoryId = suggestedCategoryId
+                        autoSuggestedCategoryId = suggestedCategoryId,
+                        onRememberCorrection = { json ->
+                            CorrectionHooks.remember?.invoke(rawText, json)
+                        }
                     )
                 }
             }

@@ -20,3 +20,6 @@ local.properties
 # 离线翻译模型（488MB），用 translate-engine/download-models.ps1 重新下载
 /translate-engine/src/main/assets/translate/
 
+# 本地大模型（约 347MB），不提交 git；见 llm-parser/src/main/assets/llm/README.txt
+/llm-parser/src/main/assets/llm/*.litertlm
+
