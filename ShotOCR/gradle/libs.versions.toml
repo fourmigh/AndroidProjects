@@ -21,6 +21,7 @@ onnxruntime = "1.30.0"
 opencv = "4.5.3.0"
 djl = "0.33.0"
 litertlm = "0.16.1"
+shizuku = "13.1.5"
 
 junit = "4.13.2"
 mockito = "5.24.0"
@@ -61,6 +62,9 @@ djl-tokenizers = { group = "ai.djl.huggingface", name = "tokenizers", version.re
 djl-tokenizer-native = { group = "ai.djl.android", name = "tokenizer-native", version.ref = "djl" }
 
 litertlm-android = { group = "com.google.ai.edge.litertlm", name = "litertlm-android", version.ref = "litertlm" }
+
+shizuku-api = { group = "dev.rikka.shizuku", name = "api", version.ref = "shizuku" }
+shizuku-provider = { group = "dev.rikka.shizuku", name = "provider", version.ref = "shizuku" }
 
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 mockito-core = { group = "org.mockito", name = "mockito-core", version.ref = "mockito" }

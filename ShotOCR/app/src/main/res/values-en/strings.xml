@@ -4,9 +4,10 @@
     <string name="service_status">Service Status</string>
     <string name="service_running">Running - Monitoring screenshots</string>
     <string name="service_stopped">Stopped</string>
+    <string name="service_status_shizuku">Shizuku mode - no listening notification</string>
     <string name="instructions_title">Instructions</string>
-    <string name="instruction_1">1. Make sure the service status above is \"Running\"</string>
-    <string name="instruction_2">2. Take a screenshot on the bill page in Alipay / WeChat / UnionPay / Taobao / JD / Douyin</string>
+    <string name="instruction_1">1. Make sure the service status above is \"Running\" or \"Shizuku mode\"</string>
+    <string name="instruction_2">2. Take a screenshot on the bill page in Alipay / WeChat / UnionPay / Taobao / JD / Douyin (Shizuku mode: tap the Quick Settings tile)</string>
     <string name="instruction_3">3. It will automatically recognize amount, discount, original amount, merchant, payment method and order number</string>
     <string name="instruction_4">4. Confirm the information and save the accounting record</string>
     <string name="principle_title">How It Works</string>
@@ -83,4 +84,27 @@
     <string name="recognition_corrections_clear">Clear</string>
     <string name="recognition_corrections_empty">No corrections yet</string>
     <string name="recognition_corrections_delete">Delete</string>
+
+    <!-- Capture mode -->
+    <string name="capture_mode_title">Capture Mode</string>
+    <string name="capture_mode_auto">Auto</string>
+    <string name="capture_mode_shizuku">Shizuku only</string>
+    <string name="capture_mode_fallback">Monitor only</string>
+    <string name="capture_mode_status_shizuku">Current: Shizuku capture (trigger via Quick Settings tile, no listening notification)</string>
+    <string name="capture_mode_status_fallback">Current: Screenshot monitoring (auto-recognize after hardware screenshot)</string>
+    <string name="capture_mode_hint_install">Shizuku is not installed; using the monitor fallback. Install and start Shizuku to use capture without a listening notification.</string>
+    <string name="capture_mode_hint_start">Shizuku is installed but not running. Open and start it (wireless debugging or root), then return here.</string>
+    <string name="capture_mode_hint_grant">Shizuku is running. Grant this app access to use it.</string>
+    <string name="capture_mode_hint_retry">Shizuku is available. Tap to re-check.</string>
+    <string name="capture_mode_install">Install Shizuku</string>
+    <string name="capture_mode_start">Start Shizuku</string>
+    <string name="capture_mode_grant">Grant access</string>
+    <string name="capture_mode_retry">Re-check</string>
+    <string name="capture_failed_fallback">Shizuku capture failed; switched to monitor mode</string>
+
+    <!-- Floating button -->
+    <string name="floating_button_title">Floating button</string>
+    <string name="floating_button_hint">Shown above other apps; tap to capture</string>
+    <string name="floating_button_hint_permission">Requires the \"Display over other apps\" permission</string>
+    <string name="floating_button_content_desc">Capture receipt</string>
 </resources>

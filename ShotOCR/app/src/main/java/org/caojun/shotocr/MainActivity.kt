@@ -30,9 +30,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import org.caojun.shotocr.accounting.AccountingManager
 import org.caojun.shotocr.accounting.CorrectionHooks
 import org.caojun.shotocr.accounting.ui.BillListActivity
+import org.caojun.shizuku.RikkaShizukuGateway
+import org.caojun.shotocr.capture.CaptureMode
+import org.caojun.shotocr.capture.CaptureModeStore
+import org.caojun.shotocr.capture.applyCaptureMode
 import org.caojun.shotocr.classification.repository.CategoryRepository
 import org.caojun.shotocr.llm.Correction
 import org.caojun.shotocr.llm.LlmStores
@@ -80,6 +85,35 @@ fun MainScreen() {
     var serviceRunning by remember { mutableStateOf(isServiceRunning(context)) }
     var principleExpanded by remember { mutableStateOf(false) }
 
+    val captureGateway = remember { RikkaShizukuGateway(context) }
+    val captureModeManager = remember { CaptureModeStore.create(context) }
+    var captureMode by remember { mutableStateOf(captureModeManager.resolve()) }
+
+    fun syncCaptureState() {
+        applyCaptureMode(context)
+        captureMode = captureModeManager.resolve()
+        serviceRunning = captureMode != CaptureMode.SHIZUKU
+    }
+
+    LifecycleResumeEffect(Unit) {
+        syncCaptureState()
+        onPauseOrDispose { }
+    }
+
+    DisposableEffect(Unit) {
+        val removePermission = captureGateway.addPermissionResultListener { _, granted ->
+            captureModeManager.onPermissionResult(granted)
+            syncCaptureState()
+        }
+        val removeDead = captureGateway.addBinderDeadListener { syncCaptureState() }
+        val removeReceived = captureGateway.addBinderReceivedListenerSticky { syncCaptureState() }
+        onDispose {
+            removePermission()
+            removeDead()
+            removeReceived()
+        }
+    }
+
     val usageAccessLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { _ ->
@@ -99,10 +133,7 @@ fun MainScreen() {
     ) { permissions ->
         hasPermission = permissions.values.all { it }
         Log.d("ShotOCR/MainActivity", "Storage permissions result: $permissions, granted=$hasPermission")
-        if (hasPermission && !serviceRunning) {
-            startScreenshotService(context)
-            serviceRunning = true
-        }
+        if (hasPermission) syncCaptureState()
     }
 
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
@@ -110,18 +141,11 @@ fun MainScreen() {
     ) { granted ->
         hasNotificationPermission = granted
         Log.d("ShotOCR/MainActivity", "Notification permission result: granted=$granted")
-        if (hasPermission && !serviceRunning) {
-            startScreenshotService(context)
-            serviceRunning = true
-        }
+        if (hasPermission) syncCaptureState()
     }
 
     LaunchedEffect(hasPermission, hasNotificationPermission) {
-        if (hasPermission && hasNotificationPermission && !serviceRunning) {
-            Log.d("ShotOCR/MainActivity", "Auto-starting service: storage=$hasPermission, notification=$hasNotificationPermission")
-            startScreenshotService(context)
-            serviceRunning = true
-        }
+        if (hasPermission) syncCaptureState()
     }
 
     Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
@@ -153,12 +177,17 @@ fun MainScreen() {
                         fontWeight = FontWeight.Medium,
                         modifier = Modifier.padding(bottom = 8.dp)
                     )
+                    val shizukuMode = captureMode == CaptureMode.SHIZUKU
                     Text(
                         text = stringResource(
-                            if (serviceRunning) R.string.service_running else R.string.service_stopped
+                            when {
+                                shizukuMode -> R.string.service_status_shizuku
+                                serviceRunning -> R.string.service_running
+                                else -> R.string.service_stopped
+                            }
                         ),
                         fontSize = 14.sp,
-                        color = if (serviceRunning)
+                        color = if (shizukuMode || serviceRunning)
                             MaterialTheme.colorScheme.primary
                         else
                             MaterialTheme.colorScheme.error
@@ -366,6 +395,8 @@ fun MainScreen() {
                 }
             }
 
+            CaptureModeCard()
+
             Spacer(modifier = Modifier.weight(1f))
 
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -463,8 +494,4 @@ private fun isServiceRunning(context: android.content.Context): Boolean {
     return false
 }
 
-private fun startScreenshotService(context: android.content.Context) {
-    Log.d("ShotOCR/MainActivity", "Starting ScreenshotService")
-    val intent = Intent(context, ScreenshotService::class.java)
-    context.startForegroundService(intent)
-}
+

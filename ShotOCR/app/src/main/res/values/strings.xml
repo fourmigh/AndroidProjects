@@ -4,9 +4,10 @@
     <string name="service_status">服务状态</string>
     <string name="service_running">运行中 - 正在监听截屏</string>
     <string name="service_stopped">已停止</string>
+    <string name="service_status_shizuku">Shizuku 模式 - 无需监听通知</string>
     <string name="instructions_title">使用说明</string>
-    <string name="instruction_1">1、确保上方服务状态为「运行中」</string>
-    <string name="instruction_2">2、在支付宝/微信/云闪付/淘宝/京东/抖音等应用的账单页截屏</string>
+    <string name="instruction_1">1、确保上方服务状态为「运行中」或「Shizuku 模式」</string>
+    <string name="instruction_2">2、在支付宝/微信/云闪付/淘宝/京东/抖音等应用的账单页截屏（Shizuku 模式：点快捷设置磁贴）</string>
     <string name="instruction_3">3、程序会自动识别账单金额、优惠、原价、商户、付款方式、订单号等信息</string>
     <string name="instruction_4">4、确认信息后保存记账记录</string>
     <string name="principle_title">实现原理</string>
@@ -83,4 +84,27 @@
     <string name="recognition_corrections_clear">清空</string>
     <string name="recognition_corrections_empty">暂无纠错示例</string>
     <string name="recognition_corrections_delete">删除</string>
+
+    <!-- 截屏方式 -->
+    <string name="capture_mode_title">截屏方式</string>
+    <string name="capture_mode_auto">自动</string>
+    <string name="capture_mode_shizuku">仅 Shizuku</string>
+    <string name="capture_mode_fallback">仅现有</string>
+    <string name="capture_mode_status_shizuku">当前：Shizuku 截屏（用「快捷设置」磁贴触发，无监听通知）</string>
+    <string name="capture_mode_status_fallback">当前：监听截图（硬件截屏后自动识别）</string>
+    <string name="capture_mode_hint_install">未安装 Shizuku 应用，已使用现有监听方案。安装并启动 Shizuku 后可改用无监听通知的截屏方式。</string>
+    <string name="capture_mode_hint_start">Shizuku 已安装但未启动，请打开并启动它（无线调试或 root），返回后自动刷新。</string>
+    <string name="capture_mode_hint_grant">Shizuku 已运行，请授予本应用权限后即可使用。</string>
+    <string name="capture_mode_hint_retry">Shizuku 已可用，点击重新检测。</string>
+    <string name="capture_mode_install">安装 Shizuku</string>
+    <string name="capture_mode_start">启动 Shizuku</string>
+    <string name="capture_mode_grant">授予权限</string>
+    <string name="capture_mode_retry">重新检测</string>
+    <string name="capture_failed_fallback">Shizuku 截屏失败，已切换为监听模式</string>
+
+    <!-- 悬浮按钮 -->
+    <string name="floating_button_title">悬浮按钮</string>
+    <string name="floating_button_hint">显示在其他应用上方，点击截屏</string>
+    <string name="floating_button_hint_permission">需要「显示在其他应用上层」权限</string>
+    <string name="floating_button_content_desc">截屏识别</string>
 </resources>

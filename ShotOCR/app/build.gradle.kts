@@ -69,9 +69,14 @@ dependencies {
     implementation(project(":accounting"))
     implementation(project(":database"))
     implementation(project(":classification"))
+    implementation(project(":prefs"))
+    implementation(project(":shizuku"))
+    implementation(project(":screen-capture"))
+    implementation(project(":floating-button"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.service)
     implementation(libs.androidx.activity.compose)
 
