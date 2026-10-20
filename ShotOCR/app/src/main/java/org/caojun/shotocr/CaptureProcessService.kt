@@ -4,14 +4,19 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Intent
+import android.graphics.Bitmap
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
+import java.io.ByteArrayOutputStream
+import kotlin.math.max
+import kotlin.math.roundToInt
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.caojun.floatingbutton.FloatingButtonController
 import org.caojun.screen.capture.ShizukuScreenCapture
 import org.caojun.shizuku.RikkaShizukuUserServiceHost
@@ -40,16 +45,29 @@ class CaptureProcessService : LifecycleService(), ReceiptProcessor.Notifier {
         private const val ID_CONFIRM = 1002
         private const val ID_DUPLICATE = 1003
         private const val ID_RESULT = 1004
+        private const val MAX_IMAGE_BYTES = 400_000
+        private const val MAX_IMAGE_BYTES_HARD = 600_000
     }
 
     private var processor: ReceiptProcessor? = null
     private var screenCapture: ShizukuScreenCapture? = null
+    private var pendingScreenshotImage: ByteArray? = null
+    private var progressFinished = false
+    private val progressStepLabels: List<String> by lazy {
+        ProcessStep.entries
+            .filter { it.weight in 1..ProcessStep.TOTAL && it != ProcessStep.FAILED }
+            .sortedBy { it.weight }
+            .map { getString(it.labelRes) }
+    }
 
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
         createHighPriorityNotificationChannel()
-        startForeground(ID_FOREGROUND, buildProgressNotification(getString(R.string.step_idle)))
+        startForeground(
+            ID_FOREGROUND,
+            buildProgressNotification(getString(R.string.step_idle), 0, indeterminate = true)
+        )
 
         processor = ReceiptProcessor(applicationContext)
         screenCapture = ShizukuScreenCapture(
@@ -63,20 +81,44 @@ class CaptureProcessService : LifecycleService(), ReceiptProcessor.Notifier {
         }
 
         lifecycleScope.launch {
-            // 无论磁贴还是悬浮按钮触发，截屏前先隐藏悬浮按钮并留出渲染时间。
+            // 无论磁贴还是悬浮按钮触发，截屏前先清理进度并隐藏悬浮按钮，留出渲染时间。
+            progressFinished = false
+            FloatingButtonController.clearProgress(applicationContext)
             FloatingButtonController.hide(applicationContext)
             delay(300)
             val bitmap = screenCapture?.capture()
-            FloatingButtonController.show(applicationContext)
             if (bitmap == null) {
-                Log.e(TAG, "Shizuku capture failed, fallback to monitor mode")
-                notifyFailure(ProcessStep.FAILED, getString(R.string.capture_failed_fallback))
-                fallbackToMonitor()
+                FloatingButtonController.show(applicationContext)
+                Log.e(TAG, "Shizuku capture failed")
+                notifyFailure(
+                    ProcessStep.FAILED,
+                    getString(
+                        R.string.capture_failed_shizuku,
+                        getString(R.string.capture_mode_shizuku)
+                    )
+                )
                 stopSelfSafely()
                 return@launch
             }
-            processor?.process(bitmap, System.currentTimeMillis(), null, this@CaptureProcessService)
-            stopSelfSafely()
+            try {
+                pendingScreenshotImage = encodeScreenshotForStorage(bitmap)
+                FloatingButtonController.showProgress(
+                    applicationContext,
+                    progressStepLabels,
+                    ProcessStep.RESOLVING_SOURCE.weight,
+                    ProcessStep.RESOLVING_SOURCE.weight / ProcessStep.TOTAL.toFloat()
+                )
+                processor?.process(
+                    bitmap,
+                    System.currentTimeMillis(),
+                    null,
+                    this@CaptureProcessService
+                )
+            } finally {
+                FloatingButtonController.finishProgress(applicationContext)
+                progressFinished = true
+                stopSelfSafely()
+            }
         }
     }
 
@@ -91,19 +133,58 @@ class CaptureProcessService : LifecycleService(), ReceiptProcessor.Notifier {
     }
 
     override fun onDestroy() {
+        if (!progressFinished) {
+            FloatingButtonController.clearProgress(applicationContext)
+        }
+        pendingScreenshotImage = null
         processor?.release()
         processor = null
         super.onDestroy()
     }
 
-    private fun fallbackToMonitor() {
-        try {
-            ContextCompat.startForegroundService(
-                this,
-                Intent(this, ScreenshotService::class.java)
+    /** 压缩一张用于确认页/列表缩略图的预览图；OCR 仍使用原始位图。 */
+    private suspend fun encodeScreenshotForStorage(bitmap: Bitmap): ByteArray? =
+        withContext(Dispatchers.Default) {
+            val attempts = listOf(1280 to 75, 960 to 65)
+            var last: ByteArray? = null
+            for ((maxSide, quality) in attempts) {
+                val bytes = compressScreenshot(bitmap, maxSide, quality) ?: continue
+                last = bytes
+                if (bytes.size <= MAX_IMAGE_BYTES) return@withContext bytes
+            }
+            last?.takeIf { it.size <= MAX_IMAGE_BYTES_HARD }
+        }
+
+    private fun compressScreenshot(bitmap: Bitmap, maxSide: Int, quality: Int): ByteArray? {
+        val longestSide = max(bitmap.width, bitmap.height)
+        val scale = if (longestSide > maxSide) {
+            maxSide.toFloat() / longestSide
+        } else {
+            1f
+        }
+        val scaled = if (scale < 1f) {
+            Bitmap.createScaledBitmap(
+                bitmap,
+                (bitmap.width * scale).roundToInt().coerceAtLeast(1),
+                (bitmap.height * scale).roundToInt().coerceAtLeast(1),
+                true
             )
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to start fallback monitor", e)
+        } else {
+            bitmap
+        }
+        return try {
+            ByteArrayOutputStream().use { out ->
+                if (scaled.compress(Bitmap.CompressFormat.JPEG, quality, out)) {
+                    out.toByteArray()
+                } else {
+                    null
+                }
+            }
+        } catch (t: Throwable) {
+            Log.w(TAG, "encode screenshot failed", t)
+            null
+        } finally {
+            if (scaled !== bitmap) scaled.recycle()
         }
     }
 
@@ -123,10 +204,24 @@ class CaptureProcessService : LifecycleService(), ReceiptProcessor.Notifier {
 
     override fun updateProgress(step: ProcessStep, detail: String?) {
         ProcessingProgress.update(step, RunState.RUNNING, detail)
-        val text = detail ?: getString(step.labelRes)
+        val text = progressText(step, detail)
+
+        FloatingButtonController.updateProgress(
+            applicationContext,
+            step.weight,
+            step.weight / ProcessStep.TOTAL.toFloat()
+        )
+
         getSystemService(NotificationManager::class.java)
-            .notify(ID_FOREGROUND, buildProgressNotification(text))
+            .notify(ID_FOREGROUND, buildProgressNotification(text, step.weight))
     }
+
+    private fun progressText(step: ProcessStep, detail: String?): String = getString(
+        R.string.progress_step_format,
+        step.weight,
+        ProcessStep.TOTAL,
+        detail ?: getString(step.labelRes)
+    )
 
     override fun clearProgress() {
         ProcessingProgress.reset()
@@ -183,6 +278,7 @@ class CaptureProcessService : LifecycleService(), ReceiptProcessor.Notifier {
             putExtra("payment_method", receiptData.paymentMethod ?: "")
             putExtra("order_number", receiptData.orderNumber ?: "")
             putExtra("source_app", sourceApp ?: "")
+            pendingScreenshotImage?.let { putExtra("screenshot_image", it) }
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
         }
         val pendingIntent = PendingIntent.getActivity(
@@ -202,14 +298,18 @@ class CaptureProcessService : LifecycleService(), ReceiptProcessor.Notifier {
         getSystemService(NotificationManager::class.java).notify(ID_CONFIRM, notification)
     }
 
-    private fun buildProgressNotification(text: String): android.app.Notification =
+    private fun buildProgressNotification(
+        text: String,
+        weight: Int,
+        indeterminate: Boolean = false
+    ): android.app.Notification =
         NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(getString(R.string.notification_title))
             .setContentText(text)
             .setSmallIcon(android.R.drawable.ic_menu_camera)
             .setContentIntent(mainPendingIntent())
             .setOnlyAlertOnce(true)
-            .setProgress(ProcessStep.TOTAL, 0, true)
+            .setProgress(ProcessStep.TOTAL, weight, indeterminate)
             .build()
 
     private fun createNotificationChannel() {

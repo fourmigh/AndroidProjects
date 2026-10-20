@@ -5,9 +5,10 @@
     <string name="service_running">运行中 - 正在监听截屏</string>
     <string name="service_stopped">已停止</string>
     <string name="service_status_shizuku">Shizuku 模式 - 无需监听通知</string>
+    <string name="service_status_unavailable">Shizuku 不可用</string>
     <string name="instructions_title">使用说明</string>
-    <string name="instruction_1">1、确保上方服务状态为「运行中」或「Shizuku 模式」</string>
-    <string name="instruction_2">2、在支付宝/微信/云闪付/淘宝/京东/抖音等应用的账单页截屏（Shizuku 模式：点快捷设置磁贴）</string>
+    <string name="instruction_1">1、确保 Shizuku 已启动并授权（或选择「%1$s」模式）</string>
+    <string name="instruction_2">2、在支付宝/微信/云闪付/淘宝/京东/抖音等应用的账单页截屏（Shizuku 模式：点悬浮按钮或快捷设置磁贴）</string>
     <string name="instruction_3">3、程序会自动识别账单金额、优惠、原价、商户、付款方式、订单号等信息</string>
     <string name="instruction_4">4、确认信息后保存记账记录</string>
     <string name="principle_title">实现原理</string>
@@ -87,12 +88,12 @@
 
     <!-- 截屏方式 -->
     <string name="capture_mode_title">截屏方式</string>
-    <string name="capture_mode_auto">自动</string>
-    <string name="capture_mode_shizuku">仅 Shizuku</string>
-    <string name="capture_mode_fallback">仅现有</string>
-    <string name="capture_mode_status_shizuku">当前：Shizuku 截屏（用「快捷设置」磁贴触发，无监听通知）</string>
-    <string name="capture_mode_status_fallback">当前：监听截图（硬件截屏后自动识别）</string>
-    <string name="capture_mode_hint_install">未安装 Shizuku 应用，已使用现有监听方案。安装并启动 Shizuku 后可改用无监听通知的截屏方式。</string>
+    <string name="capture_mode_shizuku">Shizuku 截屏</string>
+    <string name="capture_mode_fallback">监听截屏</string>
+    <string name="capture_mode_status_shizuku">当前：%1$s（悬浮按钮或快捷设置磁贴触发，无监听通知）</string>
+    <string name="capture_mode_status_fallback">当前：%1$s（硬件截屏后自动识别）</string>
+    <string name="capture_mode_status_unavailable">当前：Shizuku 不可用（请启动并授权）</string>
+    <string name="capture_mode_hint_install">未安装 Shizuku 应用，当前无法截屏。安装并启动 Shizuku 后即可使用无监听通知的截屏方式。</string>
     <string name="capture_mode_hint_start">Shizuku 已安装但未启动，请打开并启动它（无线调试或 root），返回后自动刷新。</string>
     <string name="capture_mode_hint_grant">Shizuku 已运行，请授予本应用权限后即可使用。</string>
     <string name="capture_mode_hint_retry">Shizuku 已可用，点击重新检测。</string>
@@ -100,7 +101,11 @@
     <string name="capture_mode_start">启动 Shizuku</string>
     <string name="capture_mode_grant">授予权限</string>
     <string name="capture_mode_retry">重新检测</string>
-    <string name="capture_failed_fallback">Shizuku 截屏失败，已切换为监听模式</string>
+    <string name="capture_mode_hint_fallback">%1$s会显示常驻通知；保存后会删除相册中的原截图。</string>
+    <string name="capture_failed_shizuku">%1$s失败，请检查 Shizuku 是否运行或页面是否受保护</string>
+    <string name="capture_unavailable_toast">Shizuku 不可用，请先启动并授权</string>
+    <string name="capture_storage_permission_toast">请先授予相册权限（%1$s需要）</string>
+    <string name="progress_step_format">第 %1$d/%2$d 步 · %3$s</string>
 
     <!-- 悬浮按钮 -->
     <string name="floating_button_title">悬浮按钮</string>

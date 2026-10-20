@@ -17,7 +17,7 @@ import org.caojun.shotocr.util.ForegroundAppResolver
 
 /**
  * 账单识别流水线：来源解析 → OCR → 本地大模型抽取 → 重复检测 → 通知确认。
- * 与"如何截图"无关，供"监听截图（FALLBACK）"与"Shizuku 截屏"两种入口复用。
+ * 与"如何截图"无关，供"监听截屏（FALLBACK）"与"Shizuku 截屏"两种入口复用。
  */
 class ReceiptProcessor(context: Context) {
 

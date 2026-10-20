@@ -67,6 +67,15 @@ class ReceiptGroupingTest {
     }
 
     @Test
+    fun parsePaymentDate_missingSpaceBetweenDateAndTime() {
+        assertEquals(LocalDate.of(2026, 9, 14), parsePaymentDate("2026-09-1410:00:00"))
+        assertEquals(LocalDate.of(2026, 9, 14), parsePaymentDate("2026-09-14T10:00:00"))
+        assertEquals(LocalDate.of(2026, 9, 5), parsePaymentDate("2026年9月5日10:00:00"))
+        assertEquals(LocalDate.of(2026, 9, 5), parsePaymentDate("2026/9/510:00"))
+        assertEquals(LocalDate.of(2026, 9, 14), parsePaymentDate("2026-09-14   10:00:00"))
+    }
+
+    @Test
     fun parsePaymentDate_invalid_returnsNull() {
         assertEquals(null, parsePaymentDate(""))
         assertEquals(null, parsePaymentDate("not-a-date"))

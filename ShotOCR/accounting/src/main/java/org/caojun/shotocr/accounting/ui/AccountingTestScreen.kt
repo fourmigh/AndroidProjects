@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import org.caojun.shotocr.accounting.AccountingManager
 import org.caojun.shotocr.accounting.EditableReceipt
+import org.caojun.shotocr.accounting.formatPaymentTime
 
 class AccountingTestActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -115,7 +116,10 @@ fun RecordCard(receipt: EditableReceipt, index: Int) {
             }
             if (receipt.paymentTime.isNotEmpty()) {
                 Text(
-                    text = stringResource(org.caojun.shotocr.accounting.R.string.payment_time_display, receipt.paymentTime),
+                    text = stringResource(
+                        org.caojun.shotocr.accounting.R.string.payment_time_display,
+                        formatPaymentTime(receipt.paymentTime)
+                    ),
                     fontSize = 14.sp
                 )
             }

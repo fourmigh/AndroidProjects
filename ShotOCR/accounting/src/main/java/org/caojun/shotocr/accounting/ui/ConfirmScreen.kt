@@ -32,6 +32,7 @@ import coil.compose.rememberAsyncImagePainter
 import kotlinx.coroutines.launch
 import org.caojun.shotocr.accounting.AccountingManager
 import org.caojun.shotocr.accounting.EditableReceipt
+import org.caojun.shotocr.accounting.formatPaymentTime
 import org.caojun.shotocr.classification.repository.CategoryRepository
 import org.caojun.shotocr.classification.ui.CategorySelectField
 
@@ -52,7 +53,7 @@ fun ConfirmScreen(
     var originalAmount by remember { mutableStateOf(receipt.originalAmount) }
     var storeName by remember { mutableStateOf(receipt.storeName) }
     var sourceApp by remember { mutableStateOf(receipt.sourceApp) }
-    var paymentTime by remember { mutableStateOf(receipt.paymentTime) }
+    var paymentTime by remember { mutableStateOf(formatPaymentTime(receipt.paymentTime)) }
     var paymentMethod by remember { mutableStateOf(receipt.paymentMethod) }
     var orderNumber by remember { mutableStateOf(receipt.orderNumber) }
     var categoryId by remember { mutableStateOf(receipt.categoryId) }

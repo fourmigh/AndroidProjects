@@ -68,6 +68,36 @@ class ReceiptJsonMapperTest {
     }
 
     @Test
+    fun map_paymentTimeWithoutSeparator_isNormalized() {
+        val data = ReceiptJsonMapper.map(
+            "{\"paymentTime\":\"2026-09-1410:00:00\"}",
+            "raw"
+        )
+
+        assertEquals("2026-09-14 10:00:00", data.paymentTime)
+    }
+
+    @Test
+    fun map_paymentTimeWithIsoSeparator_isNormalized() {
+        val data = ReceiptJsonMapper.map(
+            "{\"paymentTime\":\"2026-09-14T10:00:00\"}",
+            "raw"
+        )
+
+        assertEquals("2026-09-14 10:00:00", data.paymentTime)
+    }
+
+    @Test
+    fun map_chinesePaymentTimeWithoutSeparator_isNormalized() {
+        val data = ReceiptJsonMapper.map(
+            "{\"paymentTime\":\"2026年9月5日10:00:00\"}",
+            "raw"
+        )
+
+        assertEquals("2026年9月5日 10:00:00", data.paymentTime)
+    }
+
+    @Test
     fun extractJsonObject_noBraces_returnsNull() {
         assertNull(ReceiptJsonMapper.extractJsonObject("no json here"))
     }

@@ -31,6 +31,7 @@ import org.caojun.shotocr.accounting.ReceiptTotals
 import org.caojun.shotocr.accounting.WeekSummary
 import org.caojun.shotocr.accounting.buildGroupedData
 import org.caojun.shotocr.accounting.formatAmount
+import org.caojun.shotocr.accounting.formatPaymentTime
 import org.caojun.shotocr.accounting.totalsOf
 import org.caojun.shotocr.accounting.R
 import java.math.BigDecimal
@@ -383,7 +384,10 @@ fun BillCard(receipt: EditableReceipt, index: Int) {
             }
             if (receipt.paymentTime.isNotEmpty()) {
                 Text(
-                    text = stringResource(R.string.payment_time_display, receipt.paymentTime),
+                    text = stringResource(
+                        R.string.payment_time_display,
+                        formatPaymentTime(receipt.paymentTime)
+                    ),
                     fontSize = 14.sp
                 )
             }

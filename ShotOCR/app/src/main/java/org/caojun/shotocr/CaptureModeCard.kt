@@ -38,10 +38,15 @@ import org.caojun.shizuku.RikkaShizukuGateway
 import org.caojun.shotocr.capture.applyCaptureMode
 
 @Composable
-fun CaptureModeCard(modifier: Modifier = Modifier) {
+fun CaptureModeCard(
+    modifier: Modifier = Modifier,
+    onModeChanged: (CaptureMode) -> Unit = {}
+) {
     val context = LocalContext.current
     val modeManager = remember { CaptureModeStore.create(context) }
     val gateway = remember { RikkaShizukuGateway(context) }
+    val shizukuLabel = stringResource(R.string.capture_mode_shizuku)
+    val fallbackLabel = stringResource(R.string.capture_mode_fallback)
 
     var preference by remember { mutableStateOf(modeManager.preference()) }
     var mode by remember { mutableStateOf(modeManager.resolve()) }
@@ -66,7 +71,9 @@ fun CaptureModeCard(modifier: Modifier = Modifier) {
     }
 
     fun refresh() {
-        mode = modeManager.resolve()
+        val resolved = modeManager.resolve()
+        mode = resolved
+        onModeChanged(resolved)
         shizukuInstalled = gateway.isInstalled()
         shizukuRunning = gateway.isRunning()
         shizukuGranted = gateway.isPermissionGranted()
@@ -121,28 +128,30 @@ fun CaptureModeCard(modifier: Modifier = Modifier) {
                 style = MaterialTheme.typography.titleSmall
             )
             Text(
-                text = stringResource(
-                    if (mode == CaptureMode.SHIZUKU) R.string.capture_mode_status_shizuku
-                    else R.string.capture_mode_status_fallback
-                ),
+                text = when (mode) {
+                    CaptureMode.SHIZUKU ->
+                        stringResource(R.string.capture_mode_status_shizuku, shizukuLabel)
+                    CaptureMode.FALLBACK ->
+                        stringResource(R.string.capture_mode_status_fallback, fallbackLabel)
+                    CaptureMode.UNAVAILABLE ->
+                        stringResource(R.string.capture_mode_status_unavailable)
+                },
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.primary
+                color = if (mode == CaptureMode.UNAVAILABLE)
+                    MaterialTheme.colorScheme.error
+                else
+                    MaterialTheme.colorScheme.primary
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(
-                    selected = preference == CapturePreference.AUTO,
-                    onClick = { select(CapturePreference.AUTO) },
-                    label = { Text(stringResource(R.string.capture_mode_auto)) }
-                )
-                FilterChip(
                     selected = preference == CapturePreference.SHIZUKU,
                     onClick = { select(CapturePreference.SHIZUKU) },
-                    label = { Text(stringResource(R.string.capture_mode_shizuku)) }
+                    label = { Text(shizukuLabel) }
                 )
                 FilterChip(
                     selected = preference == CapturePreference.FALLBACK,
                     onClick = { select(CapturePreference.FALLBACK) },
-                    label = { Text(stringResource(R.string.capture_mode_fallback)) }
+                    label = { Text(fallbackLabel) }
                 )
             }
 
@@ -192,7 +201,15 @@ fun CaptureModeCard(modifier: Modifier = Modifier) {
                 }
             }
 
-            if (mode == CaptureMode.FALLBACK) {
+            if (preference == CapturePreference.FALLBACK) {
+                Text(
+                    text = stringResource(R.string.capture_mode_hint_fallback, fallbackLabel),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.outline
+                )
+            }
+
+            if (preference == CapturePreference.SHIZUKU && mode == CaptureMode.UNAVAILABLE) {
                 val needsInstall = !shizukuInstalled && !shizukuRunning
                 val needsStart = shizukuInstalled && !shizukuRunning
                 Text(

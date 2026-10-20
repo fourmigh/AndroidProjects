@@ -75,10 +75,12 @@ class ConfirmActivity : ComponentActivity() {
         val paymentMethod = intent.getStringExtra("payment_method") ?: ""
         val orderNumber = intent.getStringExtra("order_number") ?: ""
         val sourceApp = intent.getStringExtra("source_app") ?: ""
+        val screenshotImage = intent.getByteArrayExtra("screenshot_image")
 
         loadNewReceipt(
             uriString, rawText, amount, discount, originalAmount,
-            storeName, paymentTime, paymentMethod, orderNumber, sourceApp
+            storeName, paymentTime, paymentMethod, orderNumber, sourceApp,
+            screenshotImage
         )
     }
 
@@ -124,12 +126,13 @@ class ConfirmActivity : ComponentActivity() {
         paymentTime: String,
         paymentMethod: String,
         orderNumber: String,
-        sourceApp: String
+        sourceApp: String,
+        screenshotImage: ByteArray?
     ) {
         val screenshotUri = if (uriString.isNotEmpty()) Uri.parse(uriString) else Uri.EMPTY
 
         lifecycleScope.launch {
-            val screenshotImage = if (screenshotUri != Uri.EMPTY) {
+            val imageBytes = screenshotImage ?: if (screenshotUri != Uri.EMPTY) {
                 compressImage(screenshotUri)
             } else null
 
@@ -137,7 +140,7 @@ class ConfirmActivity : ComponentActivity() {
 
             val receipt = EditableReceipt(
                 screenshotUri = screenshotUri,
-                screenshotImage = screenshotImage,
+                screenshotImage = imageBytes,
                 rawText = rawText,
                 amount = amount,
                 discount = discount,

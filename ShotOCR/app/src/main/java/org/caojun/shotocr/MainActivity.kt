@@ -90,9 +90,10 @@ fun MainScreen() {
     var captureMode by remember { mutableStateOf(captureModeManager.resolve()) }
 
     fun syncCaptureState() {
+        hasPermission = checkStoragePermission(context)
         applyCaptureMode(context)
         captureMode = captureModeManager.resolve()
-        serviceRunning = captureMode != CaptureMode.SHIZUKU
+        serviceRunning = captureMode == CaptureMode.FALLBACK && hasPermission
     }
 
     LifecycleResumeEffect(Unit) {
@@ -133,7 +134,7 @@ fun MainScreen() {
     ) { permissions ->
         hasPermission = permissions.values.all { it }
         Log.d("ShotOCR/MainActivity", "Storage permissions result: $permissions, granted=$hasPermission")
-        if (hasPermission) syncCaptureState()
+        syncCaptureState()
     }
 
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
@@ -141,11 +142,11 @@ fun MainScreen() {
     ) { granted ->
         hasNotificationPermission = granted
         Log.d("ShotOCR/MainActivity", "Notification permission result: granted=$granted")
-        if (hasPermission) syncCaptureState()
+        syncCaptureState()
     }
 
     LaunchedEffect(hasPermission, hasNotificationPermission) {
-        if (hasPermission) syncCaptureState()
+        syncCaptureState()
     }
 
     Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
@@ -178,10 +179,12 @@ fun MainScreen() {
                         modifier = Modifier.padding(bottom = 8.dp)
                     )
                     val shizukuMode = captureMode == CaptureMode.SHIZUKU
+                    val unavailable = captureMode == CaptureMode.UNAVAILABLE
                     Text(
                         text = stringResource(
                             when {
                                 shizukuMode -> R.string.service_status_shizuku
+                                unavailable -> R.string.service_status_unavailable
                                 serviceRunning -> R.string.service_running
                                 else -> R.string.service_stopped
                             }
@@ -272,7 +275,10 @@ fun MainScreen() {
                         modifier = Modifier.padding(bottom = 8.dp)
                     )
                     Text(
-                        text = stringResource(R.string.instruction_1),
+                        text = stringResource(
+                            R.string.instruction_1,
+                            stringResource(R.string.capture_mode_fallback)
+                        ),
                         fontSize = 14.sp,
                         modifier = Modifier.padding(bottom = 4.dp)
                     )
@@ -293,7 +299,9 @@ fun MainScreen() {
                 }
             }
 
-            if (!hasPermission || !hasNotificationPermission) {
+            val needsStoragePermission =
+                captureMode == CaptureMode.FALLBACK && !hasPermission
+            if (needsStoragePermission || !hasNotificationPermission) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
@@ -307,7 +315,7 @@ fun MainScreen() {
                             fontWeight = FontWeight.Medium,
                             modifier = Modifier.padding(bottom = 8.dp)
                         )
-                        if (!hasPermission) {
+                        if (needsStoragePermission) {
                             Text(
                                 text = stringResource(R.string.permission_required_desc),
                                 fontSize = 14.sp,
@@ -319,7 +327,7 @@ fun MainScreen() {
                                 Text(stringResource(R.string.grant_permission))
                             }
                         }
-                        if (hasPermission && !hasNotificationPermission) {
+                        if (!hasNotificationPermission) {
                             Text(
                                 text = stringResource(R.string.notification_permission_desc),
                                 fontSize = 14.sp,
@@ -395,7 +403,12 @@ fun MainScreen() {
                 }
             }
 
-            CaptureModeCard()
+            CaptureModeCard(
+                onModeChanged = { newMode ->
+                    captureMode = newMode
+                    serviceRunning = newMode == CaptureMode.FALLBACK && hasPermission
+                }
+            )
 
             Spacer(modifier = Modifier.weight(1f))
 

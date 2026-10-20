@@ -8,23 +8,30 @@ object ReceiptExtractionPrompt {
 
     const val BASE_RULES = """你是账单信息抽取助手。只输出一个 JSON 对象（无解释、无 markdown），字段：
 amount 实付, discount 优惠, originalAmount 原价, storeName 店名, paymentTime 支付时间(yyyy-MM-dd HH:mm:ss), paymentMethod 付款方式, orderNumber 订单号, sourceApp 来源App。
-规则：金额只填数字、去负号取绝对值（-0.03→0.03），未知填 null；无原价则 originalAmount=实付+优惠；"共减/共省/优惠合计"是优惠总额，勿与明细重复累加；"立减/优惠/补贴/积分/奖励"不是店名、也不是付款方式；orderNumber 取"订单号/订单编号/交易单号/交易流水号/交易号"后的长数字（号码可能在标签的上一行或下一行；勿取"商户单号"）。"""
+规则：所有字段必须来自输入 OCR；示例只说明格式，严禁照抄示例中的数值、店名、时间、单号。
+金额只填数字、去负号取绝对值（-0.03→0.03），未知填 null；无原价则 originalAmount=实付+优惠。
+amount 取商户下方带负号的实付金额；若该行数字残缺，用 originalAmount - discount 计算。
+originalAmount 取"订单金额/原价"；discount 取优惠/立减/红包/补贴/支付遇财神/福利等负数的绝对值之和。
+"共减/共省/优惠合计"是优惠总额，勿与明细重复累加；"立减/优惠/补贴/积分/奖励"不是店名、也不是付款方式。
+paymentTime 取"支付时间"后的日期时间；日期与时间之间没有空格或用 T 分隔也要识别，统一输出 yyyy-MM-dd HH:mm:ss；找不到填 null。
+orderNumber 取"订单号/订单编号/交易单号/交易流水号/交易号"后的长数字（号码可能在标签的上一行或下一行；勿取"商户单号"）。"""
 
     private val PLATFORM_EXTRAS: Map<Platform, String> = mapOf(
         Platform.ALIPAY to """支付宝：店名是"账单详情"下的商户名；付款方式取"付款方式"行。
 示例 输入：
 账单详情
-肯德基(上海塘桥餐厅)
--9.77
-11.20
+示例商户
+-8.88
+9.00
 订单金额
-网商银行福利-0.90
-支付18VIP到店-0.50
-网商银行储蓄卡(3841)
+支付遇财神-0.12
+花呗
 付款方式
+支付时间
+2026-10-0823:01:46
 订单号
 2026100823001465011447014045
-输出：{"amount":9.77,"discount":1.43,"originalAmount":11.2,"storeName":"肯德基(上海塘桥餐厅)","paymentTime":null,"paymentMethod":"网商银行储蓄卡(3841)","orderNumber":"2026100823001465011447014045","sourceApp":"支付宝"}""",
+输出：{"amount":8.88,"discount":0.12,"originalAmount":9.0,"storeName":"示例商户","paymentTime":"2026-10-08 23:01:46","paymentMethod":"花呗","orderNumber":"2026100823001465011447014045","sourceApp":"支付宝"}""",
         Platform.WECHAT to """微信：店名是"全部账单"下的商户名；付款方式取"支付方式"下的银行卡；orderNumber 取"交易单号"对应数字（可能在标签上一行或下一行），勿取"商户单号"。
 示例 输入：
 全部账单

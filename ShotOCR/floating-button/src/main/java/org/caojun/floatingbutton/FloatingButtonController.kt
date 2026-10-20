@@ -61,6 +61,44 @@ object FloatingButtonController {
         send(context, FloatingButtonService.ACTION_HIDE)
     }
 
+    /**
+     * 显示悬浮进度列表；[steps] 为全部步骤名称，[currentIndex] 为当前步骤（从 1 开始）。
+     */
+    fun showProgress(
+        context: Context,
+        steps: List<String>,
+        currentIndex: Int,
+        fraction: Float? = null
+    ) {
+        sendProgress(
+            context,
+            FloatingButtonService.ACTION_PROGRESS_SHOW,
+            ArrayList(steps),
+            currentIndex,
+            fraction
+        )
+    }
+
+    fun updateProgress(context: Context, currentIndex: Int, fraction: Float? = null) {
+        sendProgress(
+            context,
+            FloatingButtonService.ACTION_PROGRESS_UPDATE,
+            null,
+            currentIndex,
+            fraction
+        )
+    }
+
+    /** 处理完成：冻结耗时并短暂停留后自动隐藏。 */
+    fun finishProgress(context: Context) {
+        send(context, FloatingButtonService.ACTION_PROGRESS_FINISH)
+    }
+
+    /** 立即移除进度列表（新截屏开始前调用，避免出现在截图里）。 */
+    fun clearProgress(context: Context) {
+        send(context, FloatingButtonService.ACTION_PROGRESS_CLEAR)
+    }
+
     fun stop(context: Context) {
         val app = context.applicationContext
         if (bound) {
@@ -86,6 +124,25 @@ object FloatingButtonController {
     private fun send(context: Context, action: String) {
         runCatching {
             context.sendBroadcast(Intent(action).setPackage(context.packageName))
+        }
+    }
+
+    private fun sendProgress(
+        context: Context,
+        action: String,
+        steps: ArrayList<String>?,
+        currentIndex: Int,
+        fraction: Float?
+    ) {
+        runCatching {
+            val intent = Intent(action)
+                .setPackage(context.packageName)
+                .putExtra(FloatingButtonService.EXTRA_CURRENT_INDEX, currentIndex)
+                .putExtra(FloatingButtonService.EXTRA_FRACTION, fraction ?: -1f)
+            if (steps != null) {
+                intent.putStringArrayListExtra(FloatingButtonService.EXTRA_STEPS, steps)
+            }
+            context.sendBroadcast(intent)
         }
     }
 }

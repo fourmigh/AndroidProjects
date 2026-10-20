@@ -83,10 +83,15 @@ private val DATE_FORMATS = listOf(
     "yyyy年M月d日"
 )
 
+/** 日期与时间之间缺少空格时（如 2026-09-1410:00:00）提取日期。 */
+private val NO_SPACE_DATE_TIME = Regex(
+    """(\d{4})\s*[-/.年]\s*(\d{1,2})\s*[-/.月]\s*(\d{1,2}?)\s*日?\s*(?=\d{1,2}:\d{2})"""
+)
+
 /** 解析支付时间字符串为日期；无法解析返回 null */
 fun parsePaymentDate(raw: String?): LocalDate? {
     if (raw.isNullOrBlank()) return null
-    val text = raw.trim()
+    val text = raw.trim().replace('T', ' ')
     for (pattern in DATE_FORMATS) {
         val formatter = DateTimeFormatter.ofPattern(pattern, Locale.CHINA)
             .withResolverStyle(ResolverStyle.LENIENT)
@@ -97,7 +102,15 @@ fun parsePaymentDate(raw: String?): LocalDate? {
         }.getOrNull()
         if (byDateTime != null) return byDateTime
     }
-    return null
+
+    val match = NO_SPACE_DATE_TIME.find(text) ?: return null
+    return runCatching {
+        LocalDate.of(
+            match.groupValues[1].toInt(),
+            match.groupValues[2].toInt(),
+            match.groupValues[3].toInt()
+        )
+    }.getOrNull()
 }
 
 data class WeekSummary(

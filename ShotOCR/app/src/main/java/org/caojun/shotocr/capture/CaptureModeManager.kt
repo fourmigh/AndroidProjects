@@ -33,9 +33,10 @@ class CaptureModeManager(
         return usable
     }
 
-    fun resolve(): CaptureMode {
-        if (preference() == CapturePreference.FALLBACK) return CaptureMode.FALLBACK
-        return if (isShizukuUsable()) CaptureMode.SHIZUKU else CaptureMode.FALLBACK
+    fun resolve(): CaptureMode = when (preference()) {
+        CapturePreference.FALLBACK -> CaptureMode.FALLBACK
+        CapturePreference.SHIZUKU ->
+            if (isShizukuUsable()) CaptureMode.SHIZUKU else CaptureMode.UNAVAILABLE
     }
 
     fun onPermissionResult(granted: Boolean) {

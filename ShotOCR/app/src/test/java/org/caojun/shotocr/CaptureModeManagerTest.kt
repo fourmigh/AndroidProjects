@@ -28,38 +28,56 @@ class CaptureModeManagerTest {
     }
 
     @Test
-    fun auto_usesShizukuWhenUsable() {
+    fun shizuku_usesShizukuWhenUsable() {
         val manager = CaptureModeManager(FakeGateway(running = true, granted = true), MemoryKeyValueStore())
 
         assertEquals(CaptureMode.SHIZUKU, manager.resolve())
     }
 
     @Test
-    fun auto_fallsBackWhenNotRunning() {
+    fun shizuku_unavailableWhenNotRunning() {
         val manager = CaptureModeManager(FakeGateway(running = false, granted = true), MemoryKeyValueStore())
 
-        assertEquals(CaptureMode.FALLBACK, manager.resolve())
+        assertEquals(CaptureMode.UNAVAILABLE, manager.resolve())
     }
 
     @Test
-    fun auto_fallsBackWhenNotGranted() {
+    fun shizuku_unavailableWhenNotGranted() {
         val manager = CaptureModeManager(FakeGateway(running = true, granted = false), MemoryKeyValueStore())
 
-        assertEquals(CaptureMode.FALLBACK, manager.resolve())
+        assertEquals(CaptureMode.UNAVAILABLE, manager.resolve())
     }
 
     @Test
-    fun deniedPermission_fallsBackUntilReGranted() {
+    fun deniedPermission_unavailableUntilReGranted() {
         val gateway = FakeGateway(running = true, granted = true)
         val manager = CaptureModeManager(gateway, MemoryKeyValueStore())
 
         manager.onPermissionResult(granted = false)
         gateway.granted = false
-        assertEquals(CaptureMode.FALLBACK, manager.resolve())
+        assertEquals(CaptureMode.UNAVAILABLE, manager.resolve())
 
         manager.onPermissionResult(granted = true)
         gateway.granted = true
         assertEquals(CaptureMode.SHIZUKU, manager.resolve())
+    }
+
+    @Test
+    fun fallbackPreference_alwaysFallback() {
+        val manager = CaptureModeManager(FakeGateway(running = true, granted = true), MemoryKeyValueStore())
+        manager.setPreference(CapturePreference.FALLBACK)
+
+        assertEquals(CaptureMode.FALLBACK, manager.resolve())
+    }
+
+    @Test
+    fun binderDead_later_unavailable() {
+        val gateway = FakeGateway(running = true, granted = true)
+        val manager = CaptureModeManager(gateway, MemoryKeyValueStore())
+        assertEquals(CaptureMode.SHIZUKU, manager.resolve())
+
+        gateway.running = false
+        assertEquals(CaptureMode.UNAVAILABLE, manager.resolve())
     }
 
     @Test
@@ -70,23 +88,5 @@ class CaptureModeManagerTest {
 
         assertEquals(CaptureMode.SHIZUKU, manager.resolve())
         assertFalse(manager.isShizukuDenied())
-    }
-
-    @Test
-    fun fallbackPreference_alwaysFallsBack() {
-        val manager = CaptureModeManager(FakeGateway(running = true, granted = true), MemoryKeyValueStore())
-        manager.setPreference(CapturePreference.FALLBACK)
-
-        assertEquals(CaptureMode.FALLBACK, manager.resolve())
-    }
-
-    @Test
-    fun binderDead_later_fallsBack() {
-        val gateway = FakeGateway(running = true, granted = true)
-        val manager = CaptureModeManager(gateway, MemoryKeyValueStore())
-        assertEquals(CaptureMode.SHIZUKU, manager.resolve())
-
-        gateway.running = false
-        assertEquals(CaptureMode.FALLBACK, manager.resolve())
     }
 }

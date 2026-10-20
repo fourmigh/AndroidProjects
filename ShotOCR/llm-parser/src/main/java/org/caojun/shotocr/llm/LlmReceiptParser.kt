@@ -16,12 +16,17 @@ class LlmReceiptParser(
 
     fun parse(text: String, sourceHint: String? = null): ReceiptData {
         runBlocking { engine.initialize() }
-        val systemInstruction = promptProvider.build(sourceHint, text)
-        val output = generateSafely(systemInstruction, text)
-        val data = ReceiptJsonMapper.map(output, text)
-        // 订单号确定性兜底：按标签就近取支付订单号（排除商户单号）。
-        val resolved = OrderNumberResolver.resolve(text)
-        return if (resolved != null) data.copy(orderNumber = resolved) else data
+        val normalizedText = OcrTextNormalizer.normalize(text)
+        val systemInstruction = promptProvider.build(sourceHint, normalizedText)
+        val output = generateSafely(systemInstruction, normalizedText)
+
+        var data = ReceiptJsonMapper.map(output, normalizedText)
+        // 防止小模型照抄示例：用 OCR 中明确出现的金额做校验/纠正。
+        data = ReceiptAmountResolver.resolve(data, normalizedText)
+        // 支付时间/订单号确定性兜底。
+        PaymentTimeResolver.resolve(normalizedText)?.let { data = data.copy(paymentTime = it) }
+        OrderNumberResolver.resolve(normalizedText)?.let { data = data.copy(orderNumber = it) }
+        return data
     }
 
     private fun buildUserMessage(systemInstruction: String, text: String, budget: Int): String {

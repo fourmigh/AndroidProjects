@@ -168,7 +168,12 @@ class ScreenshotService : LifecycleService(), ReceiptProcessor.Notifier {
 
     override fun updateProgress(step: ProcessStep, detail: String?) {
         ProcessingProgress.update(step, RunState.RUNNING, detail)
-        val text = detail ?: getString(step.labelRes)
+        val text = getString(
+            R.string.progress_step_format,
+            step.weight,
+            ProcessStep.TOTAL,
+            detail ?: getString(step.labelRes)
+        )
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(getString(R.string.notification_title))
             .setContentText(text)
