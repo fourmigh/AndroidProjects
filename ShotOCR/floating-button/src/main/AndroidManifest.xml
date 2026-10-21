@@ -7,6 +7,10 @@
         <service
             android:name="org.caojun.floatingbutton.FloatingButtonService"
             android:exported="false" />
+
+        <service
+            android:name="org.caojun.floatingbutton.WaitingOverlayService"
+            android:exported="false" />
     </application>
 
 </manifest>

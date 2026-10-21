@@ -71,6 +71,7 @@ dependencies {
     implementation(project(":classification"))
     implementation(project(":prefs"))
     implementation(project(":shizuku"))
+    implementation(project(":shizuku-return"))
     implementation(project(":screen-capture"))
     implementation(project(":floating-button"))
 

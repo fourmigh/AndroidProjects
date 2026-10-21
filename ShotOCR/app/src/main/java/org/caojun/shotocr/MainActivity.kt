@@ -18,6 +18,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
@@ -27,6 +28,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -36,12 +39,15 @@ import org.caojun.shotocr.accounting.CorrectionHooks
 import org.caojun.shotocr.accounting.ui.BillListActivity
 import org.caojun.shizuku.RikkaShizukuGateway
 import org.caojun.shotocr.capture.CaptureMode
+import org.caojun.shotocr.capture.CaptureModeManager
 import org.caojun.shotocr.capture.CaptureModeStore
+import org.caojun.shotocr.shizuku.ShizukuReturn
 import org.caojun.shotocr.capture.applyCaptureMode
 import org.caojun.shotocr.classification.repository.CategoryRepository
 import org.caojun.shotocr.llm.Correction
 import org.caojun.shotocr.llm.LlmStores
 import org.caojun.shotocr.llm.PlatformDetector
+import org.caojun.shotocr.ui.VerticalScrollbar
 import org.caojun.shotocr.ui.theme.ShotOCRTheme
 import org.caojun.shotocr.util.ForegroundAppResolver
 
@@ -49,6 +55,20 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         private const val TAG = "ShotOCR/MainActivity"
+
+        @Volatile
+        var isResumed = false
+            private set
+    }
+
+    override fun onResume() {
+        super.onResume()
+        isResumed = true
+    }
+
+    override fun onPause() {
+        isResumed = false
+        super.onPause()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -57,6 +77,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         AccountingManager.init(this)
         CategoryRepository.init(this)
+        ShizukuReturn.init(this)
         CorrectionHooks.remember = { rawText, correctedJson ->
             val platformId = PlatformDetector.detect(null, rawText)?.id ?: "generic"
             LlmStores.correctionStore(applicationContext).add(Correction(rawText, correctedJson, platformId))
@@ -97,7 +118,13 @@ fun MainScreen() {
     }
 
     LifecycleResumeEffect(Unit) {
+        ShizukuReturn.onAppResumed()
         syncCaptureState()
+        if (ShizukuReturn.consumeAutoRequestPermission() &&
+            !captureGateway.isPermissionGranted()
+        ) {
+            captureGateway.requestPermission(CaptureModeManager.PERMISSION_REQUEST_CODE)
+        }
         onPauseOrDispose { }
     }
 
@@ -107,7 +134,9 @@ fun MainScreen() {
             syncCaptureState()
         }
         val removeDead = captureGateway.addBinderDeadListener { syncCaptureState() }
-        val removeReceived = captureGateway.addBinderReceivedListenerSticky { syncCaptureState() }
+        val removeReceived = captureGateway.addBinderReceivedListenerSticky {
+            syncCaptureState()
+        }
         onDispose {
             removePermission()
             removeDead()
@@ -154,49 +183,71 @@ fun MainScreen() {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(24.dp)
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            Text(
-                text = stringResource(R.string.app_title),
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(top = 16.dp)
+            val shizukuMode = captureMode == CaptureMode.SHIZUKU
+            val unavailable = captureMode == CaptureMode.UNAVAILABLE
+            val statusText = stringResource(
+                when {
+                    shizukuMode -> R.string.capture_mode_shizuku
+                    unavailable -> R.string.service_status_unavailable
+                    serviceRunning -> R.string.capture_mode_fallback
+                    else -> R.string.service_stopped
+                }
             )
+            val statusColor = if (shizukuMode || serviceRunning) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.error
+            }
 
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
-                )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 24.dp, end = 24.dp, top = 16.dp, bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = stringResource(R.string.app_title),
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                Column(
+                    modifier = Modifier.padding(start = 16.dp),
+                    horizontalAlignment = Alignment.End
+                ) {
                     Text(
                         text = stringResource(R.string.service_status),
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier.padding(bottom = 8.dp)
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.outline,
+                        textAlign = TextAlign.End
                     )
-                    val shizukuMode = captureMode == CaptureMode.SHIZUKU
-                    val unavailable = captureMode == CaptureMode.UNAVAILABLE
                     Text(
-                        text = stringResource(
-                            when {
-                                shizukuMode -> R.string.service_status_shizuku
-                                unavailable -> R.string.service_status_unavailable
-                                serviceRunning -> R.string.service_running
-                                else -> R.string.service_stopped
-                            }
-                        ),
-                        fontSize = 14.sp,
-                        color = if (shizukuMode || serviceRunning)
-                            MaterialTheme.colorScheme.primary
-                        else
-                            MaterialTheme.colorScheme.error
+                        text = statusText,
+                        fontSize = 13.sp,
+                        color = statusColor,
+                        textAlign = TextAlign.End,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
+
+            val scrollState = rememberScrollState()
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(scrollState)
+                        .padding(horizontal = 24.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(20.dp)
+                ) {
 
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -410,58 +461,78 @@ fun MainScreen() {
                 }
             )
 
-            Spacer(modifier = Modifier.weight(1f))
-
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Button(
-                        onClick = {
-                            context.startActivity(Intent(context, BillListActivity::class.java))
-                        },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(stringResource(R.string.view_records))
-                    }
-
-                    OutlinedButton(
-                        onClick = {
-                            context.startActivity(Intent(context, ClassificationManagementActivity::class.java))
-                        },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(stringResource(org.caojun.shotocr.classification.R.string.category_entry))
-                    }
                 }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    OutlinedButton(
-                        onClick = {
-                            context.startActivity(Intent(context, RecognitionSettingsActivity::class.java))
-                        },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(stringResource(R.string.recognition_settings))
-                    }
-
-                    // 占位，使按钮与上一行第一列等宽对齐（表格样式）
-                    Spacer(modifier = Modifier.weight(1f))
-                }
+                VerticalScrollbar(
+                    scrollState = scrollState,
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(vertical = 4.dp)
+                )
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp)
+            ) {
+                LazyRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = PaddingValues(horizontal = 24.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    item {
+                        Button(
+                            onClick = {
+                                context.startActivity(Intent(context, BillListActivity::class.java))
+                            }
+                        ) {
+                            Text(
+                                text = stringResource(R.string.view_records),
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
+                    }
+                    item {
+                        OutlinedButton(
+                            onClick = {
+                                context.startActivity(Intent(context, ClassificationManagementActivity::class.java))
+                            }
+                        ) {
+                            Text(
+                                text = stringResource(org.caojun.shotocr.classification.R.string.category_entry),
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
+                    }
+                    item {
+                        OutlinedButton(
+                            onClick = {
+                                context.startActivity(Intent(context, RecognitionSettingsActivity::class.java))
+                            }
+                        ) {
+                            Text(
+                                text = stringResource(R.string.recognition_settings),
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
+                    }
+                }
 
-            Text(
-                text = stringResource(R.string.powered_by),
-                fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.outline,
-                modifier = Modifier.align(Alignment.CenterHorizontally)
-            )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = stringResource(R.string.powered_by),
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.outline,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp, vertical = 12.dp)
+                )
+            }
         }
     }
 }

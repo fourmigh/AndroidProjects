@@ -107,6 +107,12 @@
     <string name="capture_storage_permission_toast">请先授予相册权限（%1$s需要）</string>
     <string name="progress_step_format">第 %1$d/%2$d 步 · %3$s</string>
 
+    <!-- Shizuku 启动后自动返回 -->
+    <string name="shizuku_return_channel_name">Shizuku 返回</string>
+    <string name="shizuku_return_channel_desc">Shizuku 启动后返回应用</string>
+    <string name="shizuku_returned_title">Shizuku 已启动</string>
+    <string name="shizuku_returned_message">点击返回 ShotOCR</string>
+
     <!-- 悬浮按钮 -->
     <string name="floating_button_title">悬浮按钮</string>
     <string name="floating_button_hint">显示在其他应用上方，点击截屏</string>

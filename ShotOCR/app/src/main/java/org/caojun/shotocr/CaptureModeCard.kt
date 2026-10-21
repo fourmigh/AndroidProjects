@@ -34,6 +34,7 @@ import org.caojun.shotocr.capture.CaptureMode
 import org.caojun.shotocr.capture.CaptureModeManager
 import org.caojun.shotocr.capture.CaptureModeStore
 import org.caojun.shotocr.capture.CapturePreference
+import org.caojun.shotocr.shizuku.ShizukuReturn
 import org.caojun.shizuku.RikkaShizukuGateway
 import org.caojun.shotocr.capture.applyCaptureMode
 
@@ -110,7 +111,9 @@ fun CaptureModeCard(
             refresh()
         }
         val removeDead = gateway.addBinderDeadListener { refresh() }
-        val removeReceived = gateway.addBinderReceivedListenerSticky { refresh() }
+        val removeReceived = gateway.addBinderReceivedListenerSticky {
+            refresh()
+        }
         onDispose {
             removePermission()
             removeDead()
@@ -254,9 +257,11 @@ private fun openShizukuApp(context: Context) {
         openShizukuDownload(context)
         return
     }
+    ShizukuReturn.markLaunched()
     try {
         context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     } catch (_: Exception) {
+        ShizukuReturn.cancel()
         openShizukuDownload(context)
     }
 }

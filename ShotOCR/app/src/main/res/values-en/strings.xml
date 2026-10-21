@@ -107,6 +107,12 @@
     <string name="capture_storage_permission_toast">Grant photo access first (required for %1$s).</string>
     <string name="progress_step_format">Step %1$d/%2$d · %3$s</string>
 
+    <!-- Return after Shizuku starts -->
+    <string name="shizuku_return_channel_name">Shizuku return</string>
+    <string name="shizuku_return_channel_desc">Return to the app after Shizuku starts</string>
+    <string name="shizuku_returned_title">Shizuku started</string>
+    <string name="shizuku_returned_message">Tap to return to ShotOCR</string>
+
     <!-- Floating button -->
     <string name="floating_button_title">Floating button</string>
     <string name="floating_button_hint">Shown above other apps; tap to capture</string>

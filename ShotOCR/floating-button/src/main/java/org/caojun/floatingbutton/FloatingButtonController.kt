@@ -17,6 +17,7 @@ object FloatingButtonController {
 
     private var options: FloatingButtonOptions? = null
     private var bound = false
+    private var waitingBound = false
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
@@ -24,6 +25,16 @@ object FloatingButtonController {
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
+        }
+    }
+
+    private val waitingConnection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
+            waitingBound = true
+        }
+
+        override fun onServiceDisconnected(name: ComponentName?) {
+            waitingBound = false
         }
     }
 
@@ -97,6 +108,33 @@ object FloatingButtonController {
     /** 立即移除进度列表（新截屏开始前调用，避免出现在截图里）。 */
     fun clearProgress(context: Context) {
         send(context, FloatingButtonService.ACTION_PROGRESS_CLEAR)
+    }
+
+    /**
+     * 显示一个极小的等待悬浮点（用于 Shizuku 启动期间满足 Android 15+ 的可见悬浮窗要求）。
+     * 无悬浮窗权限时返回 false。
+     */
+    fun showWaitingOverlay(context: Context): Boolean {
+        if (!Settings.canDrawOverlays(context)) return false
+        val app = context.applicationContext
+        if (waitingBound) return true
+        waitingBound = runCatching {
+            app.bindService(
+                Intent(app, WaitingOverlayService::class.java),
+                waitingConnection,
+                Context.BIND_AUTO_CREATE
+            )
+        }.getOrDefault(false)
+        return waitingBound
+    }
+
+    fun hideWaitingOverlay(context: Context) {
+        val app = context.applicationContext
+        if (waitingBound) {
+            runCatching { app.unbindService(waitingConnection) }
+            waitingBound = false
+        }
+        runCatching { app.stopService(Intent(app, WaitingOverlayService::class.java)) }
     }
 
     fun stop(context: Context) {
