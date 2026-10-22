@@ -15,7 +15,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -23,18 +22,19 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import org.caojun.floatingbutton.FloatingButtonController
+import org.caojun.floatingbutton.FloatingButtonMode
 import org.caojun.shotocr.capture.CaptureMode
 import org.caojun.shotocr.capture.CaptureModeManager
 import org.caojun.shotocr.capture.CaptureModeStore
 import org.caojun.shotocr.capture.CapturePreference
 import org.caojun.shotocr.shizuku.ShizukuReturn
+import org.caojun.segmented.SegmentedControl
 import org.caojun.shizuku.RikkaShizukuGateway
 import org.caojun.shotocr.capture.applyCaptureMode
 
@@ -54,20 +54,27 @@ fun CaptureModeCard(
     var shizukuInstalled by remember { mutableStateOf(gateway.isInstalled()) }
     var shizukuRunning by remember { mutableStateOf(gateway.isRunning()) }
     var shizukuGranted by remember { mutableStateOf(gateway.isPermissionGranted()) }
-    var floatingEnabled by remember { mutableStateOf(FloatingButtonController.isEnabled(context)) }
+    var floatingMode by remember { mutableStateOf(FloatingButtonController.mode(context)) }
     var floatingPermission by remember {
         mutableStateOf(FloatingButtonController.isPermissionGranted(context))
     }
-    var pendingFloatingEnable by remember { mutableStateOf(false) }
+    var pendingFloatingMode by remember { mutableStateOf<FloatingButtonMode?>(null) }
 
     val overlayPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) {
-        pendingFloatingEnable = false
         val granted = FloatingButtonController.isPermissionGranted(context)
         floatingPermission = granted
-        floatingEnabled = granted
-        FloatingButtonController.setEnabled(context, granted)
+        val pending = pendingFloatingMode
+        pendingFloatingMode = null
+        if (granted) {
+            val target = pending ?: FloatingButtonController.mode(context)
+            floatingMode = target
+            FloatingButtonController.setMode(context, target)
+        } else {
+            floatingMode = FloatingButtonMode.OFF
+            FloatingButtonController.setMode(context, FloatingButtonMode.OFF)
+        }
         applyCaptureMode(context)
     }
 
@@ -80,15 +87,16 @@ fun CaptureModeCard(
         shizukuGranted = gateway.isPermissionGranted()
 
         floatingPermission = FloatingButtonController.isPermissionGranted(context)
-        floatingEnabled = FloatingButtonController.isEnabled(context)
-        if (pendingFloatingEnable && floatingPermission) {
-            FloatingButtonController.setEnabled(context, true)
-            floatingEnabled = true
-            pendingFloatingEnable = false
+        floatingMode = FloatingButtonController.mode(context)
+        val pending = pendingFloatingMode
+        if (pending != null && floatingPermission) {
+            FloatingButtonController.setMode(context, pending)
+            floatingMode = pending
+            pendingFloatingMode = null
         }
-        if (floatingEnabled && !floatingPermission) {
-            FloatingButtonController.setEnabled(context, false)
-            floatingEnabled = false
+        if (floatingMode != FloatingButtonMode.OFF && !floatingPermission) {
+            FloatingButtonController.setMode(context, FloatingButtonMode.OFF)
+            floatingMode = FloatingButtonMode.OFF
         }
 
         applyCaptureMode(context)
@@ -103,6 +111,24 @@ fun CaptureModeCard(
         modeManager.setPreference(pref)
         preference = pref
         refresh()
+    }
+
+    fun selectFloatingMode(target: FloatingButtonMode) {
+        if (target == FloatingButtonMode.OFF) {
+            pendingFloatingMode = null
+            floatingMode = FloatingButtonMode.OFF
+            FloatingButtonController.setMode(context, FloatingButtonMode.OFF)
+            applyCaptureMode(context)
+            return
+        }
+        if (FloatingButtonController.isPermissionGranted(context)) {
+            floatingMode = target
+            FloatingButtonController.setMode(context, target)
+            applyCaptureMode(context)
+        } else {
+            pendingFloatingMode = target
+            overlayPermissionLauncher.launch(FloatingButtonController.permissionIntent(context))
+        }
     }
 
     DisposableEffect(Unit) {
@@ -159,48 +185,42 @@ fun CaptureModeCard(
             }
 
             if (mode == CaptureMode.SHIZUKU) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        text = stringResource(R.string.floating_button_title),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text(
+                        text = stringResource(
+                            if (floatingPermission) R.string.floating_button_hint
+                            else R.string.floating_button_hint_permission
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                    val floatingModeLabels = FloatingButtonMode.entries.map {
+                        stringResource(floatingModeLabelRes(it))
+                    }
+                    val floatingModeIndex = FloatingButtonMode.entries
+                        .indexOf(floatingMode)
+                        .coerceAtLeast(0)
+
+                    SegmentedControl(
+                        options = floatingModeLabels,
+                        selectedIndex = floatingModeIndex,
+                        onSelected = { index ->
+                            selectFloatingMode(FloatingButtonMode.entries[index])
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    if (floatingPermission) {
                         Text(
-                            text = stringResource(R.string.floating_button_title),
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                        Text(
-                            text = stringResource(
-                                if (floatingPermission) R.string.floating_button_hint
-                                else R.string.floating_button_hint_permission
-                            ),
+                            text = stringResource(R.string.floating_button_modes_hint),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.outline
                         )
                     }
-                    Switch(
-                        checked = floatingEnabled,
-                        onCheckedChange = { checked ->
-                            if (checked) {
-                                if (FloatingButtonController.isPermissionGranted(context)) {
-                                    floatingPermission = true
-                                    floatingEnabled = true
-                                    FloatingButtonController.setEnabled(context, true)
-                                    applyCaptureMode(context)
-                                } else {
-                                    pendingFloatingEnable = true
-                                    overlayPermissionLauncher.launch(
-                                        FloatingButtonController.permissionIntent(context)
-                                    )
-                                }
-                            } else {
-                                pendingFloatingEnable = false
-                                floatingEnabled = false
-                                FloatingButtonController.setEnabled(context, false)
-                                applyCaptureMode(context)
-                            }
-                        }
-                    )
                 }
             }
 
@@ -249,6 +269,12 @@ fun CaptureModeCard(
             }
         }
     }
+}
+
+private fun floatingModeLabelRes(mode: FloatingButtonMode): Int = when (mode) {
+    FloatingButtonMode.OFF -> R.string.floating_button_off
+    FloatingButtonMode.EDGE_HIDE -> R.string.floating_button_edge_hide
+    FloatingButtonMode.ALWAYS_SHOW -> R.string.floating_button_always_show
 }
 
 private fun openShizukuApp(context: Context) {

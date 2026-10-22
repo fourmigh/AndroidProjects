@@ -45,17 +45,21 @@ object FloatingButtonController {
         Uri.parse("package:${context.packageName}")
     )
 
-    fun isEnabled(context: Context): Boolean = FloatingButtonSettings(context).enabled
+    fun mode(context: Context): FloatingButtonMode = FloatingButtonSettings(context).mode
 
-    fun setEnabled(context: Context, enabled: Boolean) {
-        FloatingButtonSettings(context).enabled = enabled
+    fun setMode(context: Context, mode: FloatingButtonMode) {
+        val settings = FloatingButtonSettings(context)
+        if (settings.mode == mode) return
+        settings.mode = mode
+        send(context, FloatingButtonService.ACTION_REFRESH_MODE)
     }
 
-    /** 根据开关与悬浮窗权限绑定/解绑服务；[options] 在进程内保持有效。 */
+    /** 根据模式与悬浮窗权限绑定/解绑服务；[options] 在进程内保持有效。 */
     fun sync(context: Context, options: FloatingButtonOptions) {
         this.options = options
         val app = context.applicationContext
-        val shouldShow = FloatingButtonSettings(app).enabled && Settings.canDrawOverlays(app)
+        val settings = FloatingButtonSettings(app)
+        val shouldShow = settings.mode != FloatingButtonMode.OFF && Settings.canDrawOverlays(app)
         if (shouldShow) {
             bind(app)
         } else {

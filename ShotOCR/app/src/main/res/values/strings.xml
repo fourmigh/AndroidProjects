@@ -1,4 +1,4 @@
-<resources>
+﻿<resources>
     <string name="app_name">ShotOCR</string>
     <string name="app_title">截屏记账</string>
     <string name="service_status">服务状态</string>
@@ -118,4 +118,8 @@
     <string name="floating_button_hint">显示在其他应用上方，点击截屏</string>
     <string name="floating_button_hint_permission">需要「显示在其他应用上层」权限</string>
     <string name="floating_button_content_desc">截屏识别</string>
+    <string name="floating_button_off">关闭</string>
+    <string name="floating_button_edge_hide">贴边隐藏</string>
+    <string name="floating_button_always_show">常显</string>
+    <string name="floating_button_modes_hint">贴边隐藏：移到屏幕边缘时隐藏一半；常显：始终完整显示。</string>
 </resources>

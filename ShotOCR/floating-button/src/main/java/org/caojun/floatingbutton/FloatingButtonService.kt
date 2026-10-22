@@ -1,10 +1,14 @@
 package org.caojun.floatingbutton
 
+import android.animation.Animator
+import android.animation.AnimatorListenerAdapter
+import android.animation.ValueAnimator
 import android.app.Service
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.Typeface
@@ -20,6 +24,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
 import android.view.WindowManager
+import android.view.animation.OvershootInterpolator
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -37,6 +42,7 @@ class FloatingButtonService : Service() {
     companion object {
         internal const val ACTION_HIDE = "org.caojun.floatingbutton.action.HIDE"
         internal const val ACTION_SHOW = "org.caojun.floatingbutton.action.SHOW"
+        internal const val ACTION_REFRESH_MODE = "org.caojun.floatingbutton.action.REFRESH_MODE"
         internal const val ACTION_PROGRESS_SHOW = "org.caojun.floatingbutton.action.PROGRESS_SHOW"
         internal const val ACTION_PROGRESS_UPDATE = "org.caojun.floatingbutton.action.PROGRESS_UPDATE"
         internal const val ACTION_PROGRESS_FINISH = "org.caojun.floatingbutton.action.PROGRESS_FINISH"
@@ -45,6 +51,9 @@ class FloatingButtonService : Service() {
         internal const val EXTRA_CURRENT_INDEX = "org.caojun.floatingbutton.extra.CURRENT_INDEX"
         internal const val EXTRA_FRACTION = "org.caojun.floatingbutton.extra.FRACTION"
 
+        private const val EDGE_ANIM_MS = 420L
+        private const val REVEAL_ANIM_MS = 150L
+        private const val AUTO_HIDE_MS = 2_500L
         private const val PROGRESS_TICK_MS = 150L
         private const val PROGRESS_LINGER_MS = 3_000L
         private val PENDING_COLOR = 0x80FFFFFF.toInt()
@@ -54,6 +63,7 @@ class FloatingButtonService : Service() {
     private lateinit var windowManager: WindowManager
     private var buttonView: ImageView? = null
     private var buttonParams: WindowManager.LayoutParams? = null
+    private var edgeAnimator: ValueAnimator? = null
 
     private var progressView: LinearLayout? = null
     private var progressTitleCount: TextView? = null
@@ -65,6 +75,7 @@ class FloatingButtonService : Service() {
     private val handler = Handler(Looper.getMainLooper())
     private val restoreRunnable = Runnable { setVisible(true) }
     private val finishHideRunnable = Runnable { clearProgressInternal() }
+    private val autoHideRunnable = Runnable { hideToHalf() }
     private val progressTicker = object : Runnable {
         override fun run() {
             renderProgress()
@@ -79,6 +90,7 @@ class FloatingButtonService : Service() {
             when (intent?.action) {
                 ACTION_HIDE -> setVisible(false)
                 ACTION_SHOW -> setVisible(true)
+                ACTION_REFRESH_MODE -> refreshButtonMode()
                 ACTION_PROGRESS_SHOW -> {
                     val steps = intent.getStringArrayListExtra(EXTRA_STEPS).orEmpty()
                     if (steps.isEmpty()) return
@@ -104,6 +116,7 @@ class FloatingButtonService : Service() {
             IntentFilter().apply {
                 addAction(ACTION_HIDE)
                 addAction(ACTION_SHOW)
+                addAction(ACTION_REFRESH_MODE)
                 addAction(ACTION_PROGRESS_SHOW)
                 addAction(ACTION_PROGRESS_UPDATE)
                 addAction(ACTION_PROGRESS_FINISH)
@@ -116,8 +129,39 @@ class FloatingButtonService : Service() {
 
     override fun onBind(intent: Intent?): IBinder = Binder()
 
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        val lp = buttonParams ?: return
+        val view = buttonView ?: return
+        val mode = FloatingButtonSettings(this).mode
+        if (mode == FloatingButtonMode.OFF) return
+
+        cancelAutoHide()
+        cancelEdgeAnimation()
+
+        val size = view.width.takeIf { it > 0 } ?: lp.width
+        val width = resources.displayMetrics.widthPixels
+        val height = resources.displayMetrics.heightPixels
+        val maxX = (width - size).coerceAtLeast(0)
+        val maxY = (height - size).coerceAtLeast(0)
+        val isLeft = lp.x + size / 2 < width / 2
+
+        lp.x = when (mode) {
+            FloatingButtonMode.EDGE_HIDE ->
+                if (isLeft) -size / 2 else width - size / 2
+            FloatingButtonMode.ALWAYS_SHOW ->
+                if (isLeft) 0 else maxX
+            FloatingButtonMode.OFF -> return
+        }
+        lp.y = lp.y.coerceIn(0, maxY)
+        runCatching { windowManager.updateViewLayout(view, lp) }
+        savePosition(lp.x, lp.y)
+    }
+
     override fun onDestroy() {
         handler.removeCallbacksAndMessages(null)
+        cancelAutoHide()
+        cancelEdgeAnimation()
         runCatching { unregisterReceiver(receiver) }
         removeProgressView()
         removeButton()
@@ -148,18 +192,37 @@ class FloatingButtonService : Service() {
         val maxX = (metrics.widthPixels - size).coerceAtLeast(0)
         val maxY = (metrics.heightPixels - size).coerceAtLeast(0)
         val settings = FloatingButtonSettings(this)
+        val mode = settings.mode
+        if (mode == FloatingButtonMode.OFF) return
+
+        val halfHidden = mode == FloatingButtonMode.EDGE_HIDE
+        val leftHalfX = -size / 2
+        val rightHalfX = metrics.widthPixels - size / 2
+        val savedX = settings.x
 
         val lp = WindowManager.LayoutParams(
             size,
             size,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            val defaultX = maxX - (16 * density).toInt()
-            x = (if (settings.x >= 0) settings.x else defaultX).coerceIn(0, maxX)
-            y = (if (settings.y >= 0) settings.y else (maxY * 0.4f).toInt()).coerceIn(0, maxY)
+            x = when {
+                savedX == FloatingButtonSettings.UNSET -> if (halfHidden) {
+                    rightHalfX
+                } else {
+                    maxX - (16 * density).toInt()
+                }
+                halfHidden -> if (savedX < metrics.widthPixels / 2) leftHalfX else rightHalfX
+                else -> savedX.coerceIn(0, maxX)
+            }
+            y = if (settings.y != FloatingButtonSettings.UNSET) {
+                settings.y.coerceIn(0, maxY)
+            } else {
+                (maxY * 0.4f).toInt()
+            }
         }
 
         view.setOnTouchListener(DragTouchListener(view, lp))
@@ -179,13 +242,27 @@ class FloatingButtonService : Service() {
         handler.removeCallbacks(restoreRunnable)
         if (visible && buttonView == null) addButton()
         val view = buttonView ?: return
-        view.visibility = if (visible) View.VISIBLE else View.GONE
+
+        val wasVisible = view.visibility == View.VISIBLE
+        if (!visible) {
+            cancelAutoHide()
+            cancelEdgeAnimation()
+            view.visibility = View.GONE
+            return
+        }
+
+        view.visibility = View.VISIBLE
+        if (!wasVisible && FloatingButtonSettings(this).mode == FloatingButtonMode.EDGE_HIDE) {
+            buttonParams?.let { snapToEdge(it) }
+        }
     }
 
     private fun showProgress(steps: List<String>, currentIndex: Int) {
         handler.removeCallbacks(restoreRunnable)
         handler.removeCallbacks(finishHideRunnable)
         handler.removeCallbacks(progressTicker)
+        cancelAutoHide()
+        cancelEdgeAnimation()
         buttonView?.visibility = View.GONE
 
         timeline.start(steps, currentIndex, SystemClock.elapsedRealtime())
@@ -212,6 +289,7 @@ class FloatingButtonService : Service() {
     private fun clearProgressInternal() {
         handler.removeCallbacks(progressTicker)
         handler.removeCallbacks(finishHideRunnable)
+        cancelAutoHide()
         removeProgressView()
         timeline.reset()
         handler.removeCallbacks(restoreRunnable)
@@ -420,20 +498,133 @@ class FloatingButtonService : Service() {
         }
     }
 
-    private fun savePosition(lp: WindowManager.LayoutParams) {
+    private fun savePosition(x: Int, y: Int) {
         FloatingButtonSettings(this).apply {
-            x = lp.x
-            y = lp.y
+            this.x = x
+            this.y = y
         }
     }
 
     private fun snapToEdge(lp: WindowManager.LayoutParams) {
+        val mode = FloatingButtonSettings(this).mode
+        if (mode == FloatingButtonMode.OFF) return
+
         val size = buttonView?.width?.takeIf { it > 0 } ?: lp.width
         val width = resources.displayMetrics.widthPixels
         val height = resources.displayMetrics.heightPixels
-        lp.x = if (lp.x + size / 2 < width / 2) 0 else (width - size).coerceAtLeast(0)
+        val maxX = (width - size).coerceAtLeast(0)
+        val isLeft = lp.x + size / 2 < width / 2
+        val targetX = if (isLeft) 0 else maxX
+
         lp.y = lp.y.coerceIn(0, (height - size).coerceAtLeast(0))
-        buttonView?.let { runCatching { windowManager.updateViewLayout(it, lp) } }
+        savePosition(targetX, lp.y)
+        cancelAutoHide()
+
+        val onEnd = if (mode == FloatingButtonMode.EDGE_HIDE) {
+            { scheduleAutoHide() }
+        } else {
+            null
+        }
+
+        if (lp.x == targetX) {
+            buttonView?.let { runCatching { windowManager.updateViewLayout(it, lp) } }
+            onEnd?.invoke()
+            return
+        }
+        animateToX(lp, targetX, EDGE_ANIM_MS, 4f, onEnd)
+    }
+
+    private fun hideToHalf() {
+        if (FloatingButtonSettings(this).mode != FloatingButtonMode.EDGE_HIDE) return
+        if (progressView != null) return
+
+        val view = buttonView ?: return
+        if (view.visibility != View.VISIBLE) return
+        val lp = buttonParams ?: return
+
+        val size = view.width.takeIf { it > 0 } ?: lp.width
+        val width = resources.displayMetrics.widthPixels
+        val isLeft = lp.x + size / 2 < width / 2
+        val targetX = if (isLeft) -size / 2 else width - size / 2
+
+        savePosition(targetX, lp.y)
+        if (lp.x == targetX) return
+        animateToX(lp, targetX, EDGE_ANIM_MS, 4f)
+    }
+
+    private fun revealIfNeeded(lp: WindowManager.LayoutParams) {
+        if (FloatingButtonSettings(this).mode != FloatingButtonMode.EDGE_HIDE) return
+
+        val size = buttonView?.width?.takeIf { it > 0 } ?: lp.width
+        val width = resources.displayMetrics.widthPixels
+        val maxX = (width - size).coerceAtLeast(0)
+        val targetX = if (lp.x + size / 2 < width / 2) 0 else maxX
+        if (lp.x == targetX) return
+
+        cancelAutoHide()
+        animateToX(lp, targetX, REVEAL_ANIM_MS, 1.5f)
+    }
+
+    private fun scheduleAutoHide() {
+        cancelAutoHide()
+        if (FloatingButtonSettings(this).mode != FloatingButtonMode.EDGE_HIDE) return
+        val view = buttonView ?: return
+        if (view.visibility != View.VISIBLE) return
+        handler.postDelayed(autoHideRunnable, AUTO_HIDE_MS)
+    }
+
+    private fun cancelAutoHide() {
+        handler.removeCallbacks(autoHideRunnable)
+    }
+
+    private fun animateToX(
+        lp: WindowManager.LayoutParams,
+        targetX: Int,
+        durationMs: Long = EDGE_ANIM_MS,
+        tension: Float = 4f,
+        onEnd: (() -> Unit)? = null
+    ) {
+        val view = buttonView ?: return
+        cancelEdgeAnimation()
+        val startX = lp.x
+        val animator = ValueAnimator.ofInt(startX, targetX).apply {
+            duration = durationMs
+            interpolator = OvershootInterpolator(tension)
+            addUpdateListener { animation ->
+                lp.x = animation.animatedValue as Int
+                runCatching { windowManager.updateViewLayout(view, lp) }
+            }
+            addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: Animator) {
+                    if (edgeAnimator !== animation) return
+                    lp.x = targetX
+                    runCatching { windowManager.updateViewLayout(view, lp) }
+                    edgeAnimator = null
+                    onEnd?.invoke()
+                }
+            })
+        }
+        edgeAnimator = animator
+        animator.start()
+    }
+
+    private fun cancelEdgeAnimation() {
+        val animator = edgeAnimator
+        edgeAnimator = null
+        animator?.cancel()
+    }
+
+    private fun refreshButtonMode() {
+        val mode = FloatingButtonSettings(this).mode
+        if (mode == FloatingButtonMode.OFF) {
+            stopSelf()
+            return
+        }
+        if (buttonView == null) {
+            addButton()
+            return
+        }
+        buttonParams?.let { snapToEdge(it) }
     }
 
     private inner class DragTouchListener(
@@ -451,6 +642,9 @@ class FloatingButtonService : Service() {
         override fun onTouch(v: View, event: MotionEvent): Boolean {
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
+                    cancelAutoHide()
+                    cancelEdgeAnimation()
+                    revealIfNeeded(lp)
                     downX = event.rawX
                     downY = event.rawY
                     startX = lp.x
@@ -463,10 +657,15 @@ class FloatingButtonService : Service() {
                     val dy = event.rawY - downY
                     if (!moved && (abs(dx) > touchSlop || abs(dy) > touchSlop)) {
                         moved = true
+                        cancelEdgeAnimation()
+                        startX = lp.x
+                        startY = lp.y
+                        downX = event.rawX
+                        downY = event.rawY
                     }
                     if (moved) {
-                        lp.x = startX + dx.toInt()
-                        lp.y = startY + dy.toInt()
+                        lp.x = startX + (event.rawX - downX).toInt()
+                        lp.y = startY + (event.rawY - downY).toInt()
                         runCatching { windowManager.updateViewLayout(view, lp) }
                     }
                 }
@@ -474,13 +673,13 @@ class FloatingButtonService : Service() {
                 MotionEvent.ACTION_UP -> {
                     if (moved) {
                         snapToEdge(lp)
-                        savePosition(lp)
                     } else {
+                        cancelEdgeAnimation()
                         performAction()
                     }
                 }
 
-                MotionEvent.ACTION_CANCEL -> Unit
+                MotionEvent.ACTION_CANCEL -> snapToEdge(lp)
                 else -> return false
             }
             return true

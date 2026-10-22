@@ -74,6 +74,7 @@ dependencies {
     implementation(project(":shizuku-return"))
     implementation(project(":screen-capture"))
     implementation(project(":floating-button"))
+    implementation(project(":segmented-control"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)

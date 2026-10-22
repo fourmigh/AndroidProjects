@@ -1,4 +1,4 @@
-<resources>
+﻿<resources>
     <string name="app_name">ShotOCR</string>
     <string name="app_title">Screenshot Accounting</string>
     <string name="service_status">Service Status</string>
@@ -118,4 +118,8 @@
     <string name="floating_button_hint">Shown above other apps; tap to capture</string>
     <string name="floating_button_hint_permission">Requires the \"Display over other apps\" permission</string>
     <string name="floating_button_content_desc">Capture receipt</string>
+    <string name="floating_button_off">Off</string>
+    <string name="floating_button_edge_hide">Edge hide</string>
+    <string name="floating_button_always_show">Always show</string>
+    <string name="floating_button_modes_hint">Edge hide: hides half when moved to the edge; Always show: stays fully visible.</string>
 </resources>
