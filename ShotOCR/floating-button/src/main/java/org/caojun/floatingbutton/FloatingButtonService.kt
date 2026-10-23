@@ -8,6 +8,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.PixelFormat
@@ -43,6 +44,7 @@ class FloatingButtonService : Service() {
         internal const val ACTION_HIDE = "org.caojun.floatingbutton.action.HIDE"
         internal const val ACTION_SHOW = "org.caojun.floatingbutton.action.SHOW"
         internal const val ACTION_REFRESH_MODE = "org.caojun.floatingbutton.action.REFRESH_MODE"
+        internal const val ACTION_REFRESH_CONFIG = "org.caojun.floatingbutton.action.REFRESH_CONFIG"
         internal const val ACTION_PROGRESS_SHOW = "org.caojun.floatingbutton.action.PROGRESS_SHOW"
         internal const val ACTION_PROGRESS_UPDATE = "org.caojun.floatingbutton.action.PROGRESS_UPDATE"
         internal const val ACTION_PROGRESS_FINISH = "org.caojun.floatingbutton.action.PROGRESS_FINISH"
@@ -55,7 +57,6 @@ class FloatingButtonService : Service() {
 
         private const val EDGE_ANIM_MS = 420L
         private const val REVEAL_ANIM_MS = 150L
-        private const val AUTO_HIDE_MS = 2_500L
         private const val PROGRESS_TICK_MS = 150L
         private const val PROGRESS_LINGER_MS = 3_000L
         private val PENDING_COLOR = 0x80FFFFFF.toInt()
@@ -66,6 +67,8 @@ class FloatingButtonService : Service() {
     private var buttonView: ImageView? = null
     private var buttonParams: WindowManager.LayoutParams? = null
     private var edgeAnimator: ValueAnimator? = null
+    private var edgeHidden = false
+    private var pendingShow = false
 
     private var progressView: LinearLayout? = null
     private var progressTitleCount: TextView? = null
@@ -76,7 +79,6 @@ class FloatingButtonService : Service() {
     private val timeline = ProgressTimeline()
 
     private val handler = Handler(Looper.getMainLooper())
-    private val restoreRunnable = Runnable { setVisible(true) }
     private val finishHideRunnable = Runnable { clearProgressInternal() }
     private val autoHideRunnable = Runnable { hideToHalf() }
     private val progressTicker = object : Runnable {
@@ -91,9 +93,20 @@ class FloatingButtonService : Service() {
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
-                ACTION_HIDE -> setVisible(false)
-                ACTION_SHOW -> setVisible(true)
+                ACTION_HIDE -> {
+                    pendingShow = false
+                    setVisible(false)
+                }
+                ACTION_SHOW -> {
+                    if (progressView != null) {
+                        pendingShow = true
+                    } else {
+                        pendingShow = false
+                        setVisible(true)
+                    }
+                }
                 ACTION_REFRESH_MODE -> refreshButtonMode()
+                ACTION_REFRESH_CONFIG -> refreshButtonConfig()
                 ACTION_PROGRESS_SHOW -> {
                     val steps = intent.getStringArrayListExtra(EXTRA_STEPS).orEmpty()
                     if (steps.isEmpty()) return
@@ -105,7 +118,10 @@ class FloatingButtonService : Service() {
                     if (current > 0) updateProgress(current)
                 }
                 ACTION_PROGRESS_FINISH -> finishProgress()
-                ACTION_PROGRESS_CLEAR -> clearProgressInternal()
+                ACTION_PROGRESS_CLEAR -> {
+                    pendingShow = false
+                    clearProgressInternal()
+                }
                 ACTION_PROGRESS_MESSAGE ->
                     intent.getStringExtra(EXTRA_MESSAGE)?.let { showProgressMessage(it) }
             }
@@ -122,6 +138,7 @@ class FloatingButtonService : Service() {
                 addAction(ACTION_HIDE)
                 addAction(ACTION_SHOW)
                 addAction(ACTION_REFRESH_MODE)
+                addAction(ACTION_REFRESH_CONFIG)
                 addAction(ACTION_PROGRESS_SHOW)
                 addAction(ACTION_PROGRESS_UPDATE)
                 addAction(ACTION_PROGRESS_FINISH)
@@ -141,6 +158,7 @@ class FloatingButtonService : Service() {
         val view = buttonView ?: return
         val mode = FloatingButtonSettings(this).mode
         if (mode == FloatingButtonMode.OFF) return
+        edgeHidden = mode == FloatingButtonMode.EDGE_HIDE
 
         cancelAutoHide()
         cancelEdgeAnimation()
@@ -177,27 +195,25 @@ class FloatingButtonService : Service() {
     private fun addButton() {
         if (buttonView != null) return
         val options = FloatingButtonController.currentOptions() ?: return
+        val settings = FloatingButtonSettings(this)
+        val config = settings.config()
 
         val density = resources.displayMetrics.density
-        val size = (options.sizeDp * density).toInt().coerceAtLeast(1)
+        val size = (config.sizeDp * density).toInt().coerceAtLeast(1)
         val padding = (size * 0.22f).toInt()
 
         val view = ImageView(this).apply {
-            setImageResource(options.iconRes)
+            setImageResource(config.icon.drawableRes)
             contentDescription = options.contentDescription
             scaleType = ImageView.ScaleType.CENTER_INSIDE
             setPadding(padding, padding, padding, padding)
-            background = ContextCompat.getDrawable(
-                this@FloatingButtonService,
-                R.drawable.bg_floating_button
-            )
             elevation = 6f * density
         }
+        applyButtonAppearance(view, config, size, density)
 
         val metrics = resources.displayMetrics
         val maxX = (metrics.widthPixels - size).coerceAtLeast(0)
         val maxY = (metrics.heightPixels - size).coerceAtLeast(0)
-        val settings = FloatingButtonSettings(this)
         val mode = settings.mode
         if (mode == FloatingButtonMode.OFF) return
 
@@ -235,17 +251,53 @@ class FloatingButtonService : Service() {
         runCatching { windowManager.addView(view, lp) }.onFailure { return }
         buttonView = view
         buttonParams = lp
+        edgeHidden = mode == FloatingButtonMode.EDGE_HIDE
+    }
+
+    private fun applyButtonAppearance(
+        view: ImageView,
+        config: FloatingButtonConfig,
+        size: Int,
+        density: Float
+    ) {
+        val background = GradientDrawable().apply {
+            shape = when (config.shape) {
+                FloatingButtonShape.CIRCLE -> GradientDrawable.OVAL
+                else -> GradientDrawable.RECTANGLE
+            }
+            cornerRadius = when (config.shape) {
+                FloatingButtonShape.ROUNDED_RECT -> size * 0.28f
+                FloatingButtonShape.SQUARE -> size * 0.08f
+                FloatingButtonShape.CIRCLE -> 0f
+            }
+            setColor(config.backgroundColor)
+            setStroke(
+                density.toInt().coerceAtLeast(1),
+                0x40FFFFFF
+            )
+        }
+        view.background = background
+        view.alpha = config.opacity
+        view.imageTintList = ColorStateList.valueOf(iconColorFor(config.backgroundColor))
+    }
+
+    private fun iconColorFor(backgroundColor: Int): Int {
+        val r = Color.red(backgroundColor) / 255f
+        val g = Color.green(backgroundColor) / 255f
+        val b = Color.blue(backgroundColor) / 255f
+        val luminance = 0.2126f * r + 0.7152f * g + 0.0722f * b
+        return if (luminance > 0.55f) Color.BLACK else Color.WHITE
     }
 
     private fun removeButton() {
         buttonView?.let { runCatching { windowManager.removeView(it) } }
         buttonView = null
         buttonParams = null
+        edgeHidden = false
     }
 
     private fun setVisible(visible: Boolean) {
         if (visible && progressView != null) return
-        handler.removeCallbacks(restoreRunnable)
         if (visible && buttonView == null) addButton()
         val view = buttonView ?: return
 
@@ -264,7 +316,7 @@ class FloatingButtonService : Service() {
     }
 
     private fun showProgress(steps: List<String>, currentIndex: Int) {
-        handler.removeCallbacks(restoreRunnable)
+        pendingShow = false
         handler.removeCallbacks(finishHideRunnable)
         handler.removeCallbacks(progressTicker)
         cancelAutoHide()
@@ -298,8 +350,10 @@ class FloatingButtonService : Service() {
         cancelAutoHide()
         removeProgressView()
         timeline.reset()
-        handler.removeCallbacks(restoreRunnable)
-        setVisible(true)
+        if (pendingShow) {
+            pendingShow = false
+            setVisible(true)
+        }
     }
 
     private fun createProgressView(steps: List<String>) {
@@ -514,10 +568,8 @@ class FloatingButtonService : Service() {
         if (!started) return
 
         // 先启动目标服务（此时悬浮窗仍可见，满足 Android 15+ 的 FGS 豁免），再隐藏按钮。
+        pendingShow = false
         setVisible(false)
-        if (options.autoRestoreMs > 0) {
-            handler.postDelayed(restoreRunnable, options.autoRestoreMs)
-        }
     }
 
     private fun savePosition(x: Int, y: Int) {
@@ -530,6 +582,7 @@ class FloatingButtonService : Service() {
     private fun snapToEdge(lp: WindowManager.LayoutParams) {
         val mode = FloatingButtonSettings(this).mode
         if (mode == FloatingButtonMode.OFF) return
+        edgeHidden = false
 
         val size = buttonView?.width?.takeIf { it > 0 } ?: lp.width
         val width = resources.displayMetrics.widthPixels
@@ -569,6 +622,7 @@ class FloatingButtonService : Service() {
         val isLeft = lp.x + size / 2 < width / 2
         val targetX = if (isLeft) -size / 2 else width - size / 2
 
+        edgeHidden = true
         savePosition(targetX, lp.y)
         if (lp.x == targetX) return
         animateToX(lp, targetX, EDGE_ANIM_MS, 4f)
@@ -576,6 +630,7 @@ class FloatingButtonService : Service() {
 
     private fun revealIfNeeded(lp: WindowManager.LayoutParams) {
         if (FloatingButtonSettings(this).mode != FloatingButtonMode.EDGE_HIDE) return
+        edgeHidden = false
 
         val size = buttonView?.width?.takeIf { it > 0 } ?: lp.width
         val width = resources.displayMetrics.widthPixels
@@ -592,7 +647,8 @@ class FloatingButtonService : Service() {
         if (FloatingButtonSettings(this).mode != FloatingButtonMode.EDGE_HIDE) return
         val view = buttonView ?: return
         if (view.visibility != View.VISIBLE) return
-        handler.postDelayed(autoHideRunnable, AUTO_HIDE_MS)
+        val delay = FloatingButtonSettings(this).config().edgeAutoHideMs
+        handler.postDelayed(autoHideRunnable, delay)
     }
 
     private fun cancelAutoHide() {
@@ -649,6 +705,18 @@ class FloatingButtonService : Service() {
         buttonParams?.let { snapToEdge(it) }
     }
 
+    private fun refreshButtonConfig() {
+        if (progressView != null) return
+
+        val hadButton = buttonView != null
+        val wasVisible = buttonView?.visibility == View.VISIBLE
+        removeButton()
+        addButton()
+        if (hadButton) {
+            buttonView?.visibility = if (wasVisible) View.VISIBLE else View.GONE
+        }
+    }
+
     private inner class DragTouchListener(
         private val view: View,
         private val lp: WindowManager.LayoutParams
@@ -660,10 +728,12 @@ class FloatingButtonService : Service() {
         private var startX = 0
         private var startY = 0
         private var moved = false
+        private var pressStartedHidden = false
 
         override fun onTouch(v: View, event: MotionEvent): Boolean {
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
+                    pressStartedHidden = edgeHidden
                     cancelAutoHide()
                     cancelEdgeAnimation()
                     revealIfNeeded(lp)
@@ -696,8 +766,17 @@ class FloatingButtonService : Service() {
                     if (moved) {
                         snapToEdge(lp)
                     } else {
-                        cancelEdgeAnimation()
-                        performAction()
+                        val edgeTapAction = FloatingButtonSettings(this@FloatingButtonService)
+                            .config()
+                            .edgeTapAction
+                        if (pressStartedHidden &&
+                            edgeTapAction == FloatingButtonEdgeTapAction.REVEAL_FIRST
+                        ) {
+                            scheduleAutoHide()
+                        } else {
+                            cancelEdgeAnimation()
+                            performAction()
+                        }
                     }
                 }
 

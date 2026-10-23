@@ -15,8 +15,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.rememberScrollState
@@ -34,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LifecycleResumeEffect
+import org.caojun.expandablecard.ExpandableCard
 import org.caojun.shotocr.accounting.AccountingManager
 import org.caojun.shotocr.accounting.CorrectionHooks
 import org.caojun.shotocr.accounting.ui.BillListActivity
@@ -104,7 +103,6 @@ fun MainScreen() {
         mutableStateOf(ForegroundAppResolver.isUsageAccessGranted(context))
     }
     var serviceRunning by remember { mutableStateOf(isServiceRunning(context)) }
-    var principleExpanded by remember { mutableStateOf(false) }
 
     val captureGateway = remember { RikkaShizukuGateway(context) }
     val captureModeManager = remember { CaptureModeStore.create(context) }
@@ -249,105 +247,65 @@ fun MainScreen() {
                     verticalArrangement = Arrangement.spacedBy(20.dp)
                 ) {
 
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                )
+            ExpandableCard(
+                title = stringResource(R.string.principle_title)
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { principleExpanded = !principleExpanded },
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = stringResource(R.string.principle_title),
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Text(
-                            text = stringResource(
-                                if (principleExpanded) R.string.principle_collapse else R.string.principle_expand
-                            ),
-                            fontSize = 14.sp,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                    AnimatedVisibility(visible = principleExpanded) {
-                        Column {
-                            Text(
-                                text = stringResource(R.string.principle_point_1),
-                                fontSize = 14.sp,
-                                modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
-                            )
-                            Text(
-                                text = stringResource(R.string.principle_point_2),
-                                fontSize = 14.sp,
-                                modifier = Modifier.padding(bottom = 4.dp)
-                            )
-                            Text(
-                                text = stringResource(R.string.principle_point_3),
-                                fontSize = 14.sp,
-                                modifier = Modifier.padding(bottom = 4.dp)
-                            )
-                            Text(
-                                text = stringResource(R.string.principle_point_4),
-                                fontSize = 14.sp,
-                                modifier = Modifier.padding(bottom = 4.dp)
-                            )
-                            Text(
-                                text = stringResource(R.string.principle_point_5),
-                                fontSize = 14.sp,
-                                modifier = Modifier.padding(bottom = 4.dp)
-                            )
-                            Text(
-                                text = stringResource(R.string.principle_point_6),
-                                fontSize = 14.sp
-                            )
-                        }
-                    }
-                }
+                Text(
+                    text = stringResource(R.string.principle_point_1),
+                    fontSize = 14.sp,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+                Text(
+                    text = stringResource(R.string.principle_point_2),
+                    fontSize = 14.sp,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+                Text(
+                    text = stringResource(R.string.principle_point_3),
+                    fontSize = 14.sp,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+                Text(
+                    text = stringResource(R.string.principle_point_4),
+                    fontSize = 14.sp,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+                Text(
+                    text = stringResource(R.string.principle_point_5),
+                    fontSize = 14.sp,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+                Text(
+                    text = stringResource(R.string.principle_point_6),
+                    fontSize = 14.sp
+                )
             }
 
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                )
+            ExpandableCard(
+                title = stringResource(R.string.instructions_title)
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = stringResource(R.string.instructions_title),
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-                    Text(
-                        text = stringResource(
-                            R.string.instruction_1,
-                            stringResource(R.string.capture_mode_fallback)
-                        ),
-                        fontSize = 14.sp,
-                        modifier = Modifier.padding(bottom = 4.dp)
-                    )
-                    Text(
-                        text = stringResource(R.string.instruction_2),
-                        fontSize = 14.sp,
-                        modifier = Modifier.padding(bottom = 4.dp)
-                    )
-                    Text(
-                        text = stringResource(R.string.instruction_3),
-                        fontSize = 14.sp,
-                        modifier = Modifier.padding(bottom = 4.dp)
-                    )
-                    Text(
-                        text = stringResource(R.string.instruction_4),
-                        fontSize = 14.sp
-                    )
-                }
+                Text(
+                    text = stringResource(
+                        R.string.instruction_1,
+                        stringResource(R.string.capture_mode_fallback)
+                    ),
+                    fontSize = 14.sp,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+                Text(
+                    text = stringResource(R.string.instruction_2),
+                    fontSize = 14.sp,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+                Text(
+                    text = stringResource(R.string.instruction_3),
+                    fontSize = 14.sp,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+                Text(
+                    text = stringResource(R.string.instruction_4),
+                    fontSize = 14.sp
+                )
             }
 
             val needsStoragePermission =

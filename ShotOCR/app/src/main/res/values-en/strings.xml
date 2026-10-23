@@ -12,8 +12,6 @@
     <string name="instruction_3">3. It will automatically recognize amount, discount, original amount, merchant, payment method and order number</string>
     <string name="instruction_4">4. Confirm the information and save the accounting record</string>
     <string name="principle_title">How It Works</string>
-    <string name="principle_expand">Expand</string>
-    <string name="principle_collapse">Collapse</string>
     <string name="principle_point_1">1. Fully offline: recognition and translation happen on your phone — nothing is uploaded and no network is needed.</string>
     <string name="principle_point_2">2. Text recognition (OCR): uses the PP-OCRv6 model to read text from your screenshot (ONNX Runtime + OpenCV).</string>
     <string name="principle_point_3">3. Semantic extraction: a local LLM (Qwen3-0.6B, Google LiteRT-LM) understands the text and outputs fields such as amount, discount, original amount, merchant, time, payment method and order number.</string>

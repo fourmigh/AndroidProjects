@@ -4,6 +4,11 @@
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
     <application>
+        <activity
+            android:name="org.caojun.floatingbutton.FloatingButtonSettingsActivity"
+            android:exported="false"
+            android:label="@string/floating_button_settings_title" />
+
         <service
             android:name="org.caojun.floatingbutton.FloatingButtonService"
             android:exported="false" />

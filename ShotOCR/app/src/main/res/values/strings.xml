@@ -12,8 +12,6 @@
     <string name="instruction_3">3、程序会自动识别账单金额、优惠、原价、商户、付款方式、订单号等信息</string>
     <string name="instruction_4">4、确认信息后保存记账记录</string>
     <string name="principle_title">实现原理</string>
-    <string name="principle_expand">展开</string>
-    <string name="principle_collapse">收起</string>
     <string name="principle_point_1">1、完全离线：识别与翻译都在手机上完成，不上传、不联网。</string>
     <string name="principle_point_2">2、文字识别（OCR）：使用 PP-OCRv6 AI 模型自动读出截图中的文字。</string>
     <string name="principle_point_3">3、语义抽取：使用本地大模型 Qwen3-0.6B（Google LiteRT-LM）理解文字，输出金额、优惠、原价、商户、时间、付款方式、订单号等结构化字段。</string>

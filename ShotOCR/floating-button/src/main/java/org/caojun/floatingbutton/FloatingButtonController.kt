@@ -54,6 +54,28 @@ object FloatingButtonController {
         send(context, FloatingButtonService.ACTION_REFRESH_MODE)
     }
 
+    fun config(context: Context): FloatingButtonConfig = FloatingButtonSettings(context).config()
+
+    fun setConfig(context: Context, config: FloatingButtonConfig) {
+        FloatingButtonSettings(context).updateConfig(config)
+        send(context, FloatingButtonService.ACTION_REFRESH_CONFIG)
+    }
+
+    fun resetPosition(context: Context) {
+        FloatingButtonSettings(context).resetPosition()
+        send(context, FloatingButtonService.ACTION_REFRESH_CONFIG)
+    }
+
+    fun resetConfig(context: Context) {
+        FloatingButtonSettings(context).resetConfig()
+        send(context, FloatingButtonService.ACTION_REFRESH_CONFIG)
+    }
+
+    fun applyMode(context: Context) {
+        val current = options ?: return
+        sync(context, current)
+    }
+
     /** 根据模式与悬浮窗权限绑定/解绑服务；[options] 在进程内保持有效。 */
     fun sync(context: Context, options: FloatingButtonOptions) {
         this.options = options

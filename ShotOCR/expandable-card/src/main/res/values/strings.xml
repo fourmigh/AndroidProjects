@@ -1,0 +1,4 @@
+<resources>
+    <string name="expandable_card_expand">展开</string>
+    <string name="expandable_card_collapse">收起</string>
+</resources>

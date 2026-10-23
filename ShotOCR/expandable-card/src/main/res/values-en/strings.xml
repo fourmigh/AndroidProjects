@@ -1,0 +1,4 @@
+<resources>
+    <string name="expandable_card_expand">Expand</string>
+    <string name="expandable_card_collapse">Collapse</string>
+</resources>

@@ -116,6 +116,7 @@ class CaptureProcessService : LifecycleService(), ReceiptProcessor.Notifier {
                 )
             } finally {
                 FloatingButtonController.finishProgress(applicationContext)
+                FloatingButtonController.show(applicationContext)
                 progressFinished = true
                 stopSelfSafely()
             }

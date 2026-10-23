@@ -75,6 +75,7 @@ dependencies {
     implementation(project(":screen-capture"))
     implementation(project(":floating-button"))
     implementation(project(":segmented-control"))
+    implementation(project(":expandable-card"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
