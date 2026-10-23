@@ -11,6 +11,7 @@ import org.caojun.shotocr.llm.LlmReceiptEngine
 import org.caojun.shotocr.llm.LlmReceiptParser
 import org.caojun.shotocr.llm.LlmStores
 import org.caojun.shotocr.llm.ReceiptData
+import org.caojun.shotocr.llm.ReceiptValidator
 import org.caojun.shotocr.llm.SystemPromptProvider
 import org.caojun.shotocr.ocr.OcrEngine
 import org.caojun.shotocr.util.ForegroundAppResolver
@@ -25,6 +26,7 @@ class ReceiptProcessor(context: Context) {
         fun updateProgress(step: ProcessStep, detail: String?)
         fun clearProgress()
         fun notifyFailure(step: ProcessStep, message: String?)
+        fun notifyNotReceipt()
         fun notifyDuplicate(duplicateId: Long, screenshotUri: String?)
         fun notifyConfirm(
             receiptData: ReceiptData,
@@ -97,6 +99,12 @@ class ReceiptProcessor(context: Context) {
                 return
             }
             val sourceApp = foregroundLabel ?: receiptData.sourceApp
+
+            if (!ReceiptValidator.isReceipt(fullText, receiptData)) {
+                notifier.notifyNotReceipt()
+                notifier.clearProgress()
+                return
+            }
 
             notifier.updateProgress(ProcessStep.DEDUP, null)
             val duplicateId = findDuplicate(receiptData, sourceApp)

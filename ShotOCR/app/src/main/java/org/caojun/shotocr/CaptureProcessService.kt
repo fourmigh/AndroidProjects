@@ -241,6 +241,22 @@ class CaptureProcessService : LifecycleService(), ReceiptProcessor.Notifier {
         getSystemService(NotificationManager::class.java).notify(ID_RESULT, notification)
     }
 
+    override fun notifyNotReceipt() {
+        val text = getString(R.string.not_receipt_notification)
+        FloatingButtonController.updateProgressMessage(
+            applicationContext,
+            getString(R.string.progress_not_receipt)
+        )
+        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle(getString(R.string.notification_title))
+            .setContentText(text)
+            .setSmallIcon(android.R.drawable.ic_menu_camera)
+            .setContentIntent(mainPendingIntent())
+            .setAutoCancel(true)
+            .build()
+        getSystemService(NotificationManager::class.java).notify(ID_RESULT, notification)
+    }
+
     override fun notifyDuplicate(duplicateId: Long, screenshotUri: String?) {
         val intent = Intent(this, ConfirmActivity::class.java).apply {
             putExtra("receipt_id", duplicateId)

@@ -47,9 +47,11 @@ class FloatingButtonService : Service() {
         internal const val ACTION_PROGRESS_UPDATE = "org.caojun.floatingbutton.action.PROGRESS_UPDATE"
         internal const val ACTION_PROGRESS_FINISH = "org.caojun.floatingbutton.action.PROGRESS_FINISH"
         internal const val ACTION_PROGRESS_CLEAR = "org.caojun.floatingbutton.action.PROGRESS_CLEAR"
+        internal const val ACTION_PROGRESS_MESSAGE = "org.caojun.floatingbutton.action.PROGRESS_MESSAGE"
         internal const val EXTRA_STEPS = "org.caojun.floatingbutton.extra.STEPS"
         internal const val EXTRA_CURRENT_INDEX = "org.caojun.floatingbutton.extra.CURRENT_INDEX"
         internal const val EXTRA_FRACTION = "org.caojun.floatingbutton.extra.FRACTION"
+        internal const val EXTRA_MESSAGE = "org.caojun.floatingbutton.extra.MESSAGE"
 
         private const val EDGE_ANIM_MS = 420L
         private const val REVEAL_ANIM_MS = 150L
@@ -68,6 +70,7 @@ class FloatingButtonService : Service() {
     private var progressView: LinearLayout? = null
     private var progressTitleCount: TextView? = null
     private var progressTotal: TextView? = null
+    private var progressMessage: TextView? = null
     private val progressLabels = mutableListOf<TextView>()
     private val progressDurations = mutableListOf<TextView>()
     private val timeline = ProgressTimeline()
@@ -103,6 +106,8 @@ class FloatingButtonService : Service() {
                 }
                 ACTION_PROGRESS_FINISH -> finishProgress()
                 ACTION_PROGRESS_CLEAR -> clearProgressInternal()
+                ACTION_PROGRESS_MESSAGE ->
+                    intent.getStringExtra(EXTRA_MESSAGE)?.let { showProgressMessage(it) }
             }
         }
     }
@@ -121,6 +126,7 @@ class FloatingButtonService : Service() {
                 addAction(ACTION_PROGRESS_UPDATE)
                 addAction(ACTION_PROGRESS_FINISH)
                 addAction(ACTION_PROGRESS_CLEAR)
+                addAction(ACTION_PROGRESS_MESSAGE)
             },
             ContextCompat.RECEIVER_NOT_EXPORTED
         )
@@ -415,8 +421,17 @@ class FloatingButtonService : Service() {
         )
         container.addView(totalRow)
 
+        val message = TextView(this).apply {
+            setTextColor(0xFFFF8A80.toInt())
+            textSize = 13f
+            visibility = View.GONE
+            setPadding(0, (8 * density).toInt(), 0, 0)
+        }
+        container.addView(message)
+
         progressTitleCount = count
         progressTotal = totalValue
+        progressMessage = message
 
         val lp = WindowManager.LayoutParams(
             width,
@@ -432,6 +447,12 @@ class FloatingButtonService : Service() {
 
         if (runCatching { windowManager.addView(container, lp) }.isFailure) return
         progressView = container
+    }
+
+    private fun showProgressMessage(message: String) {
+        val view = progressMessage ?: return
+        view.text = message
+        view.visibility = View.VISIBLE
     }
 
     private fun renderProgress() {
@@ -476,6 +497,7 @@ class FloatingButtonService : Service() {
         progressView = null
         progressTitleCount = null
         progressTotal = null
+        progressMessage = null
         progressLabels.clear()
         progressDurations.clear()
     }

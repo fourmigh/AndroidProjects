@@ -16,6 +16,7 @@ object ReceiptAmountResolver {
     )
     private val NEGATIVE = Regex("""-\s*[¥￥]?\s*(\d+(?:\.\d{1,2})?)""")
     private val GARBLED_AMOUNT = Regex("""-\s*\d+\s*-\s*\d{2}""")
+    private val DATE_LIKE = Regex("""\d{4}\s*[-/.]\s*\d{1,2}\s*[-/.]\s*\d{1,2}""")
 
     private val DISCOUNT_KEYWORDS = listOf(
         "优惠", "立减", "红包", "补贴", "支付遇财神", "福利", "奖励", "抵扣", "满减", "共减", "共省"
@@ -85,8 +86,10 @@ object ReceiptAmountResolver {
     private fun extractPaid(text: String): BigDecimal? {
         for (line in text.lines()) {
             if (DISCOUNT_KEYWORDS.any { line.contains(it) }) continue
-            if (GARBLED_AMOUNT.containsMatchIn(line)) continue
-            val match = NEGATIVE.find(line) ?: continue
+            // 去掉日期后再找负号，避免把 2026-10-23 里的 -10 当成实付金额。
+            val withoutDate = DATE_LIKE.replace(line, " ")
+            if (GARBLED_AMOUNT.containsMatchIn(withoutDate)) continue
+            val match = NEGATIVE.find(withoutDate) ?: continue
             return parse(match.groupValues[1])
         }
         return null

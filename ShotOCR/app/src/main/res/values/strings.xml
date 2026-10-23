@@ -35,6 +35,7 @@
     <string name="confirm_channel_desc">截图识别完成后自动弹出确认界面</string>
     <string name="screenshot_recognized">识别完成，请确认</string>
     <string name="duplicate_receipt_notification">该账单已识别过，点击查看账单</string>
+    <string name="not_receipt_notification">这不是有效的账单，已忽略本次截图</string>
     <string name="error_load_screenshot">加载截图失败，文件可能仍在处理中</string>
     <string name="error_occurred">发生错误：%1$s</string>
     <string name="error_model_missing">未找到模型文件：请将 %1$s 放入 assets/llm 后重新安装</string>
@@ -59,6 +60,7 @@
     <string name="progress_detail_ocr">识别到 %1$d 段文字</string>
     <string name="progress_detail_ai_loading">首次加载模型，请稍候…</string>
     <string name="progress_duplicate">该账单已识别过</string>
+    <string name="progress_not_receipt">不是有效的账单，已忽略</string>
     <string name="progress_done">识别完成，请确认</string>
     <string name="progress_failed">%1$s 失败：%2$s</string>
 

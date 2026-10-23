@@ -1,6 +1,7 @@
 package org.caojun.shotocr.llm
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class ReceiptAmountResolverTest {
@@ -63,5 +64,25 @@ class ReceiptAmountResolverTest {
         assertEquals(9.77, result.amount!!, 0.001)
         assertEquals(1.43, result.discount!!, 0.001)
         assertEquals(11.2, result.originalAmount!!, 0.001)
+    }
+
+    @Test
+    fun dateOnlyText_doesNotBecomePaidAmount() {
+        val result = ReceiptAmountResolver.resolve(
+            data(null, null, null),
+            "2026-10-23 10:00:00"
+        )
+
+        assertNull(result.amount)
+    }
+
+    @Test
+    fun dateAndAmountOnSameLine_extractsAmount() {
+        val result = ReceiptAmountResolver.resolve(
+            data(null, null, null),
+            "2026-10-23 10:00:00 -8.88"
+        )
+
+        assertEquals(8.88, result.amount!!, 0.001)
     }
 }

@@ -109,6 +109,17 @@ object FloatingButtonController {
         send(context, FloatingButtonService.ACTION_PROGRESS_FINISH)
     }
 
+    /** 在进度卡片底部显示一条结果提示（如“不是有效的账单”）。 */
+    fun updateProgressMessage(context: Context, message: String) {
+        runCatching {
+            context.sendBroadcast(
+                Intent(FloatingButtonService.ACTION_PROGRESS_MESSAGE)
+                    .setPackage(context.packageName)
+                    .putExtra(FloatingButtonService.EXTRA_MESSAGE, message)
+            )
+        }
+    }
+
     /** 立即移除进度列表（新截屏开始前调用，避免出现在截图里）。 */
     fun clearProgress(context: Context) {
         send(context, FloatingButtonService.ACTION_PROGRESS_CLEAR)
