@@ -12,6 +12,9 @@ import org.caojun.floatingbutton.FloatingButtonOptions
 import org.caojun.shotocr.CaptureProcessService
 import org.caojun.shotocr.R
 import org.caojun.shotocr.ScreenshotService
+import org.caojun.shotocr.batch.BatchCaptureService
+import org.caojun.shotocr.batch.BatchDiagnostics
+import org.caojun.shotocr.batch.BatchModeController
 
 /** 按用户选择的模式启停监听服务/悬浮按钮；Shizuku 模式绝不启动监听。 */
 fun applyCaptureMode(context: Context) {
@@ -54,10 +57,22 @@ fun hasStoragePermission(context: Context): Boolean {
 }
 
 private fun syncFloatingButton(context: Context) {
+    val armed = BatchModeController.isArmed()
+    val action = if (armed) {
+        Intent(context, BatchCaptureService::class.java)
+    } else {
+        Intent(context, CaptureProcessService::class.java)
+    }
+    BatchDiagnostics.log(
+        "floating_action",
+        "armed" to armed,
+        "action" to action.component?.className,
+        "mode" to FloatingButtonController.mode(context)
+    )
     FloatingButtonController.sync(
         context,
         FloatingButtonOptions(
-            action = Intent(context, CaptureProcessService::class.java),
+            action = action,
             contentDescription = context.getString(R.string.floating_button_content_desc)
         )
     )

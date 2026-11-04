@@ -9,6 +9,7 @@ object OcrTextNormalizer {
 
     private val ANCHORS = listOf(
         "账单详情",
+        "账单管理",
         "全部账单",
         "云闪付交易详情",
         "交易详情",
@@ -25,6 +26,7 @@ object OcrTextNormalizer {
     private val CN_DATE_TIME_GAP = Regex(
         """(\d{4}\s*年\s*\d{1,2}\s*月\s*)(\d{1,2}?)\s*日\s*(\d{1,2}:\d{2}(?::\d{2})?)"""
     )
+    private val MONEY = Regex("""(?<!\d)\d+(?:,\d{3})*\.\d{2}(?!\d)""")
 
     fun normalize(raw: String): String {
         var text = trimBeforeAnchor(raw).replace('T', ' ')
@@ -43,6 +45,7 @@ object OcrTextNormalizer {
             .filter { it >= 0 }
             .minOrNull()
             ?: return text
+        if (MONEY.containsMatchIn(text.substring(0, index))) return text
         return text.substring(index)
     }
 }

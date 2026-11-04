@@ -28,6 +28,16 @@ interface ReceiptDao {
     @Query("SELECT * FROM receipts WHERE paymentTime = :paymentTime AND sourceApp = :sourceApp LIMIT 1")
     suspend fun getByPaymentTime(paymentTime: String, sourceApp: String): ReceiptEntity?
 
+    @Query(
+        "SELECT * FROM receipts WHERE paymentTime = :paymentTime AND sourceApp = :sourceApp " +
+            "AND id != :excludeId LIMIT 1"
+    )
+    suspend fun getByPaymentTimeExcludingId(
+        paymentTime: String,
+        sourceApp: String,
+        excludeId: Long
+    ): ReceiptEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(receipt: ReceiptEntity): Long
 

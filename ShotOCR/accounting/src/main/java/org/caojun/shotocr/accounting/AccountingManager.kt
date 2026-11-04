@@ -18,11 +18,19 @@ object AccountingManager {
     private val _records = MutableStateFlow<List<EditableReceipt>>(emptyList())
     val records: StateFlow<List<EditableReceipt>> = _records.asStateFlow()
 
+    @Volatile
+    private var initialized = false
+
     fun init(context: Context) {
-        receiptDao = AppDatabase.getInstance(context).receiptDao()
-        CoroutineScope(Dispatchers.IO).launch {
-            receiptDao?.getAll()?.collect { entities ->
-                _records.value = entities.map { it.toEditableReceipt() }
+        if (initialized) return
+        synchronized(this) {
+            if (initialized) return
+            initialized = true
+            receiptDao = AppDatabase.getInstance(context).receiptDao()
+            CoroutineScope(Dispatchers.IO).launch {
+                receiptDao?.getAll()?.collect { entities ->
+                    _records.value = entities.map { it.toEditableReceipt() }
+                }
             }
         }
     }

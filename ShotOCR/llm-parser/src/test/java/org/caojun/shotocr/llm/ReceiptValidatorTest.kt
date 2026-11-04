@@ -152,6 +152,23 @@ class ReceiptValidatorTest {
     }
 
     @Test
+    fun alipayFundDetailWithoutCurrencySymbol_isValid() {
+        val text = """
+            蚂蚁财富-蚂蚁（杭州）基金销售有限公司
+            400.00
+            支付成功,份额确认中
+            账单管理
+            创建时间
+            2026-10-26 14:32:15
+            商品说明
+            蚂蚁财富-帮你投-定投转入
+            计入收支
+        """.trimIndent()
+
+        assertTrue(ReceiptValidator.isReceipt(text, data()))
+    }
+
+    @Test
     fun homeScreen_isInvalid() {
         val text = """
             设置

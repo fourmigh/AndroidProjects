@@ -14,6 +14,11 @@
     <string name="ocr_raw_text">OCR 原文</string>
     <string name="no_text">(无文本)</string>
     <string name="save">保存</string>
+    <string name="review_save">审核保存</string>
+    <string name="auto_batch_review_hint">自动识别记录，审核保存后计入统计。</string>
+    <string name="auto_batch_pending">自动识别 · 待审核</string>
+    <string name="payment_time_required">请先填写完整的支付时间，才能审核或保存。</string>
+    <string name="duplicate_payment_time">同一平台已存在相同支付时间的账单，不能重复保存。</string>
     <string name="saved">已保存</string>
     <string name="remember_correction">记住这次纠正（改进识别）</string>
     <string name="correction_remembered">已记住这次纠正</string>

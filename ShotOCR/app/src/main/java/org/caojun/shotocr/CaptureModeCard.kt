@@ -7,10 +7,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Button
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -33,6 +31,7 @@ import org.caojun.shotocr.capture.CaptureMode
 import org.caojun.shotocr.capture.CaptureModeManager
 import org.caojun.shotocr.capture.CaptureModeStore
 import org.caojun.shotocr.capture.CapturePreference
+import org.caojun.shotocr.batch.BatchCaptureCard
 import org.caojun.shotocr.shizuku.ShizukuReturn
 import org.caojun.segmented.SegmentedControl
 import org.caojun.shizuku.RikkaShizukuGateway
@@ -161,26 +160,28 @@ fun CaptureModeCard(
         MaterialTheme.colorScheme.primary
     }
 
-    ExpandableCard(
-        title = stringResource(R.string.capture_mode_title),
-        subtitle = statusText,
-        subtitleColor = statusColor,
-        initiallyExpanded = true,
-        modifier = modifier
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(
-                    selected = preference == CapturePreference.SHIZUKU,
-                    onClick = { select(CapturePreference.SHIZUKU) },
-                    label = { Text(shizukuLabel) }
-                )
-                FilterChip(
-                    selected = preference == CapturePreference.FALLBACK,
-                    onClick = { select(CapturePreference.FALLBACK) },
-                    label = { Text(fallbackLabel) }
-                )
-            }
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        ExpandableCard(
+            title = stringResource(R.string.capture_mode_title),
+            subtitle = statusText,
+            subtitleColor = statusColor,
+            initiallyExpanded = true,
+            modifier = modifier
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            val capturePreferences = CapturePreference.entries
+            val captureModeLabels = listOf(shizukuLabel, fallbackLabel)
+            val captureModeIndex = capturePreferences
+                .indexOf(preference)
+                .coerceAtLeast(0)
+            SegmentedControl(
+                options = captureModeLabels,
+                selectedIndex = captureModeIndex,
+                onSelected = { index ->
+                    select(capturePreferences[index])
+                },
+                modifier = Modifier.fillMaxWidth()
+            )
 
             if (mode == CaptureMode.SHIZUKU) {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -280,6 +281,14 @@ fun CaptureModeCard(
                     )
                 }
             }
+            }
+        }
+
+        if (mode == CaptureMode.SHIZUKU) {
+            BatchCaptureCard(
+                shizukuReady = shizukuRunning && shizukuGranted,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 }

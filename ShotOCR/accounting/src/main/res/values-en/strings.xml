@@ -9,6 +9,11 @@
     <string name="ocr_raw_text">OCR Raw Text</string>
     <string name="no_text">(No text)</string>
     <string name="save">Save</string>
+    <string name="review_save">Review &amp; save</string>
+    <string name="auto_batch_review_hint">Auto-recognized record; review and save to include it in statistics.</string>
+    <string name="auto_batch_pending">Auto · pending review</string>
+    <string name="payment_time_required">Enter a complete payment time before reviewing or saving.</string>
+    <string name="duplicate_payment_time">A bill with the same payment time already exists for this platform.</string>
     <string name="saved">Saved</string>
     <string name="remember_correction">Remember this correction (improve recognition)</string>
     <string name="correction_remembered">Correction saved</string>

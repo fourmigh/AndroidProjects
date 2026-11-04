@@ -20,6 +20,7 @@ data class ReceiptEntity(
     val orderNumber: String,
     val sourceApp: String = "",
     val categoryId: String = UNCATEGORIZED_ID,
+    val origin: String = "",
     val createdAt: Long = System.currentTimeMillis()
 ) {
     companion object {
@@ -42,6 +43,7 @@ data class ReceiptEntity(
                 orderNumber == other.orderNumber &&
                 sourceApp == other.sourceApp &&
                 categoryId == other.categoryId &&
+                origin == other.origin &&
                 createdAt == other.createdAt
     }
 
@@ -59,6 +61,7 @@ data class ReceiptEntity(
         result = 31 * result + orderNumber.hashCode()
         result = 31 * result + sourceApp.hashCode()
         result = 31 * result + categoryId.hashCode()
+        result = 31 * result + origin.hashCode()
         result = 31 * result + createdAt.hashCode()
         return result
     }

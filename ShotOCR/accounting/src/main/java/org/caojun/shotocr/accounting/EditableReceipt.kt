@@ -15,8 +15,11 @@ data class EditableReceipt(
     val paymentMethod: String = "",
     val orderNumber: String = "",
     val sourceApp: String = "",
-    val categoryId: String = DEFAULT_CATEGORY_ID
+    val categoryId: String = DEFAULT_CATEGORY_ID,
+    val origin: String = ORIGIN_REVIEWED
 ) {
+    val isAutoBatch: Boolean get() = origin == ORIGIN_AUTO_BATCH
+
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is EditableReceipt) return false
@@ -32,7 +35,8 @@ data class EditableReceipt(
                 paymentMethod == other.paymentMethod &&
                 orderNumber == other.orderNumber &&
                 sourceApp == other.sourceApp &&
-                categoryId == other.categoryId
+                categoryId == other.categoryId &&
+                origin == other.origin
     }
 
     override fun hashCode(): Int {
@@ -49,11 +53,15 @@ data class EditableReceipt(
         result = 31 * result + orderNumber.hashCode()
         result = 31 * result + sourceApp.hashCode()
         result = 31 * result + categoryId.hashCode()
+        result = 31 * result + origin.hashCode()
         return result
     }
 
     companion object {
         const val DEFAULT_CATEGORY_ID = "uncategorized"
+        const val ORIGIN_MANUAL = "manual"
+        const val ORIGIN_AUTO_BATCH = "auto_batch"
+        const val ORIGIN_REVIEWED = ""
 
         fun empty(): EditableReceipt {
             return EditableReceipt(

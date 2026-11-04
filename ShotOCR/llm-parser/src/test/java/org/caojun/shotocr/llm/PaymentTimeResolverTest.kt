@@ -21,6 +21,13 @@ class PaymentTimeResolverTest {
     }
 
     @Test
+    fun fallsBackToCreatedTimeLabel() {
+        val text = "账单管理\n创建时间\n2026-10-26 14:32:15\n商品说明"
+
+        assertEquals("2026-10-26 14:32:15", PaymentTimeResolver.resolve(text))
+    }
+
+    @Test
     fun returnsNullWithoutFullDateTime() {
         assertNull(PaymentTimeResolver.resolve("13:00:59\n支付时间"))
         assertNull(PaymentTimeResolver.resolve("2026-10-20"))

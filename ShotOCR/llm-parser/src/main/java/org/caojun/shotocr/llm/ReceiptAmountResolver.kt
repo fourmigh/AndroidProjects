@@ -47,13 +47,19 @@ object ReceiptAmountResolver {
             else -> data.amount
         }
 
+        val discountFromDifference = if (resultOriginal != null && resultPaid != null) {
+            (BigDecimal.valueOf(resultOriginal) - BigDecimal.valueOf(resultPaid))
+                .abs()
+                .toDouble()
+        } else {
+            null
+        }
+
+        // 原金额与实付金额的差值是最可靠的总优惠；多笔优惠行只用于校验和兜底。
         val resultDiscount = when {
-            data.discount != null && isGrounded(data.discount, tokens) -> data.discount
-            resultOriginal != null && resultPaid != null ->
-                (BigDecimal.valueOf(resultOriginal) - BigDecimal.valueOf(resultPaid))
-                    .abs()
-                    .toDouble()
+            discountFromDifference != null -> discountFromDifference
             discountFromLines != null -> discountFromLines.toDouble()
+            data.discount != null && isGrounded(data.discount, tokens) -> data.discount
             else -> data.discount
         }
 

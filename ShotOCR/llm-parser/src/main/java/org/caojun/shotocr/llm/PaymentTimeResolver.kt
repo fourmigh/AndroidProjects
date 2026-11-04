@@ -23,7 +23,13 @@ object PaymentTimeResolver {
         val matches = DATE_TIME.findAll(ocrText).toList()
         if (matches.isEmpty()) return null
 
-        val labelIndex = ocrText.indexOf("支付时间")
+        val paymentLabelIndex = listOf("支付时间", "付款时间", "交易时间")
+            .map { ocrText.indexOf(it) }
+            .filter { it >= 0 }
+            .minOrNull()
+        val labelIndex = paymentLabelIndex
+            ?: ocrText.indexOf("创建时间").takeIf { it >= 0 }
+            ?: -1
         val match = if (labelIndex >= 0) {
             matches.firstOrNull { it.range.first >= labelIndex } ?: matches.first()
         } else {

@@ -64,31 +64,44 @@ class OcrEngine(private val context: Context) {
         val shape = longArrayOf(1, 3, detInputSize.toLong(), detInputSize.toLong())
         val floatBuffer = FloatBuffer.wrap(detInput)
         val detTensor = OnnxTensor.createTensor(ortEnv!!, floatBuffer, shape)
-
-        val inputName = detSession!!.inputNames.first()
-        val detOutput = detSession!!.run(mapOf(inputName to detTensor))
-        @Suppress("UNCHECKED_CAST")
-        val detResult = detOutput[0].value as Array<Array<Array<FloatArray>>>
-
-        val boxes = postprocessDet(detResult, bitmap.width, bitmap.height)
-
-        val results = mutableListOf<OcrResult>()
-        for (box in boxes) {
-            val cropped = cropBitmap(bitmap, box)
-            val text = recognizeText(cropped) ?: continue
-            val cx = (box.left + box.right) / 2f
-            val cy = (box.top + box.bottom) / 2f
-            results.add(
-                OcrResult(
-                    text = text.first,
-                    score = text.second,
-                    box = box,
-                    center = PointF(cx, cy)
-                )
-            )
+        val detOutput = try {
+            val inputName = detSession!!.inputNames.first()
+            detSession!!.run(mapOf(inputName to detTensor))
+        } catch (t: Throwable) {
+            detTensor.close()
+            throw t
         }
 
-        mergeRows(results)
+        try {
+            @Suppress("UNCHECKED_CAST")
+            val detResult = detOutput[0].value as Array<Array<Array<FloatArray>>>
+            val boxes = postprocessDet(detResult, bitmap.width, bitmap.height)
+
+            val results = mutableListOf<OcrResult>()
+            for (box in boxes) {
+                val cropped = cropBitmap(bitmap, box)
+                val text = try {
+                    recognizeText(cropped)
+                } finally {
+                    if (!cropped.isRecycled) cropped.recycle()
+                } ?: continue
+                val cx = (box.left + box.right) / 2f
+                val cy = (box.top + box.bottom) / 2f
+                results.add(
+                    OcrResult(
+                        text = text.first,
+                        score = text.second,
+                        box = box,
+                        center = PointF(cx, cy)
+                    )
+                )
+            }
+
+            mergeRows(results)
+        } finally {
+            detOutput.close()
+            detTensor.close()
+        }
     }
 
     /**
@@ -246,15 +259,22 @@ class OcrEngine(private val context: Context) {
         val floatBuffer = FloatBuffer.wrap(input)
         val tensor = OnnxTensor.createTensor(ortEnv!!, floatBuffer, shape)
 
-        val inputName = recSession!!.inputNames.first()
-        val output = recSession!!.run(mapOf(inputName to tensor))
-        @Suppress("UNCHECKED_CAST")
-        val logits = output[0].value as Array<Array<FloatArray>>
+        val output = try {
+            val inputName = recSession!!.inputNames.first()
+            recSession!!.run(mapOf(inputName to tensor))
+        } catch (t: Throwable) {
+            tensor.close()
+            throw t
+        }
 
-        val decoded = ctcDecode(logits[0])
-        tensor.close()
-
-        return decoded
+        return try {
+            @Suppress("UNCHECKED_CAST")
+            val logits = output[0].value as Array<Array<FloatArray>>
+            ctcDecode(logits[0])
+        } finally {
+            output.close()
+            tensor.close()
+        }
     }
 
     private fun preprocessRec(bitmap: Bitmap): FloatArray? {

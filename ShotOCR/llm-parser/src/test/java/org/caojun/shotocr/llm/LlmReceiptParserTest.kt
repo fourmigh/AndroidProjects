@@ -2,6 +2,7 @@ package org.caojun.shotocr.llm
 
 import org.caojun.shotocr.prefs.MemoryKeyValueStore
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -72,6 +73,32 @@ class LlmReceiptParserTest {
             .parse("支付方式\n4500000453202610059952337463\n交易单号\n商户单号\nPOCC202610051629340913218207")
 
         assertEquals("4500000453202610059952337463", data.orderNumber)
+    }
+
+    @Test
+    fun parse_clearsOrderNumberWhenNotVisible() {
+        val response = """
+            {"amount":6.97,"discount":0.03,"originalAmount":7.0,"storeName":"胡记锅贴",
+             "paymentTime":"2026-10-20 07:07:57","paymentMethod":"花呗",
+             "orderNumber":"2026100823001465011447014045","sourceApp":"支付宝"}
+        """.trimIndent()
+        val ocr = """
+            账单详情
+            胡记锅贴
+            -6.97
+            交易成功
+            订单金额
+            7.00
+            支付遇财神 -0.03
+            支付时间
+            2026-10-2007:07:57
+            付款方式
+            花呗
+        """.trimIndent()
+
+        val data = LlmReceiptParser(FakeEngine(response), provider()).parse(ocr)
+
+        assertNull(data.orderNumber)
     }
 
     @Test

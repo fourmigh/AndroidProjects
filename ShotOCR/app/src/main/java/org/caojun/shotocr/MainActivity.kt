@@ -36,6 +36,7 @@ import org.caojun.expandablecard.ExpandableCard
 import org.caojun.shotocr.accounting.AccountingManager
 import org.caojun.shotocr.accounting.CorrectionHooks
 import org.caojun.shotocr.accounting.ui.BillListActivity
+import org.caojun.shotocr.batch.BatchDiagnostics
 import org.caojun.shizuku.RikkaShizukuGateway
 import org.caojun.shotocr.capture.CaptureMode
 import org.caojun.shotocr.capture.CaptureModeManager
@@ -74,6 +75,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         Log.d(TAG, "onCreate")
         enableEdgeToEdge()
+        BatchDiagnostics.init(this)
         AccountingManager.init(this)
         CategoryRepository.init(this)
         ShizukuReturn.init(this)

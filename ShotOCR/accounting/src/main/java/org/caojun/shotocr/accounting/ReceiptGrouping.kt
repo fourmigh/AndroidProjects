@@ -30,10 +30,11 @@ data class ReceiptTotals(
 }
 
 fun totalsOf(receipts: List<EditableReceipt>): ReceiptTotals {
+    val counted = receipts.filter { it.origin != EditableReceipt.ORIGIN_AUTO_BATCH }
     var amount = BigDecimal.ZERO
     var discount = BigDecimal.ZERO
     var order = BigDecimal.ZERO
-    receipts.forEach { receipt ->
+    counted.forEach { receipt ->
         val a = parseAmount(receipt.amount)
         val d = parseAmount(receipt.discount)
         amount += a
@@ -44,7 +45,7 @@ fun totalsOf(receipts: List<EditableReceipt>): ReceiptTotals {
             a + d
         }
     }
-    return ReceiptTotals(receipts.size, amount, discount, order)
+    return ReceiptTotals(counted.size, amount, discount, order)
 }
 
 /** 解析金额字符串，清理货币符号、千分位等非数字字符；无法解析返回 0 */

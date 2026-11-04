@@ -20,6 +20,7 @@ import android.os.IBinder
 import android.os.Looper
 import android.os.SystemClock
 import android.text.TextUtils
+import android.util.Log
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -59,6 +60,7 @@ class FloatingButtonService : Service() {
         private const val REVEAL_ANIM_MS = 150L
         private const val PROGRESS_TICK_MS = 150L
         private const val PROGRESS_LINGER_MS = 3_000L
+        private const val TAG = "FloatingButton"
         private val PENDING_COLOR = 0x80FFFFFF.toInt()
         private val CURRENT_COLOR = 0xFFFFD54F.toInt()
     }
@@ -557,15 +559,31 @@ class FloatingButtonService : Service() {
     }
 
     private fun performAction() {
-        val options = FloatingButtonController.currentOptions() ?: return
-        val started = runCatching {
+        val options = FloatingButtonController.currentOptions() ?: run {
+            Log.w(TAG, "floating action skipped: no options")
+            return
+        }
+        val actionClass = options.action.component?.className
+        val result = runCatching {
             if (options.startAsForegroundService) {
                 ContextCompat.startForegroundService(this, options.action)
             } else {
                 startService(options.action)
             }
-        }.isSuccess
-        if (!started) return
+        }
+        val error = result.exceptionOrNull()
+        if (error != null) {
+            Log.w(
+                TAG,
+                "floating action failed: action=$actionClass foreground=${options.startAsForegroundService}",
+                error
+            )
+            return
+        }
+        Log.i(
+            TAG,
+            "floating action started: action=$actionClass foreground=${options.startAsForegroundService}"
+        )
 
         // 先启动目标服务（此时悬浮窗仍可见，满足 Android 15+ 的 FGS 豁免），再隐藏按钮。
         pendingShow = false
@@ -772,6 +790,7 @@ class FloatingButtonService : Service() {
                         if (pressStartedHidden &&
                             edgeTapAction == FloatingButtonEdgeTapAction.REVEAL_FIRST
                         ) {
+                            Log.i(TAG, "edge tap: revealed only, action not triggered")
                             scheduleAutoHide()
                         } else {
                             cancelEdgeAnimation()

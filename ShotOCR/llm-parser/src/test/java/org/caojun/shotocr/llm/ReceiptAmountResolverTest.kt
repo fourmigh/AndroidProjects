@@ -67,6 +67,32 @@ class ReceiptAmountResolverTest {
     }
 
     @Test
+    fun sumsMultipleDiscountsAndUsesOriginalMinusPaid() {
+        val text = """
+            上海接地气餐饮管理有限公司
+            -18.62
+            订单金额
+            19.50
+            网商银行福利 -0.85
+            金抵扣
+            支付遇财神√-0.03
+            支付时间
+            2026-10-25 07:58:38
+            付款方式
+            网商银行储蓄卡(3841)>
+        """.trimIndent()
+
+        val result = ReceiptAmountResolver.resolve(
+            data(18.62, 0.85, 19.50),
+            text
+        )
+
+        assertEquals(18.62, result.amount!!, 0.001)
+        assertEquals(19.50, result.originalAmount!!, 0.001)
+        assertEquals(0.88, result.discount!!, 0.001)
+    }
+
+    @Test
     fun dateOnlyText_doesNotBecomePaidAmount() {
         val result = ReceiptAmountResolver.resolve(
             data(null, null, null),

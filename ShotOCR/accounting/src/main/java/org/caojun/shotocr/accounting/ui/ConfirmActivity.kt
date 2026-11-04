@@ -7,6 +7,7 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
 import android.util.Log
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.IntentSenderRequest
@@ -20,6 +21,7 @@ import org.caojun.shotocr.accounting.AccountingManager
 import org.caojun.shotocr.accounting.CorrectionHooks
 import org.caojun.shotocr.accounting.EditableReceipt
 import org.caojun.shotocr.classification.repository.CategoryRepository
+import org.caojun.shotocr.database.data.AppDatabase
 import org.caojun.shotocr.classification.repository.CategoryRuleRepository
 import org.caojun.shotocr.classification.classifier.CategoryClassifier
 import java.io.ByteArrayOutputStream
@@ -150,7 +152,8 @@ class ConfirmActivity : ComponentActivity() {
                 paymentMethod = paymentMethod,
                 orderNumber = orderNumber,
                 sourceApp = sourceApp,
-                categoryId = suggestedCategoryId ?: EditableReceipt.DEFAULT_CATEGORY_ID
+                categoryId = suggestedCategoryId ?: EditableReceipt.DEFAULT_CATEGORY_ID,
+                origin = EditableReceipt.ORIGIN_MANUAL
             )
 
             setContent {
@@ -173,6 +176,30 @@ class ConfirmActivity : ComponentActivity() {
 
     private fun handleSave(savedReceipt: EditableReceipt) {
         lifecycleScope.launch {
+            if (savedReceipt.paymentTime.isBlank()) {
+                Toast.makeText(
+                    this@ConfirmActivity,
+                    org.caojun.shotocr.accounting.R.string.payment_time_required,
+                    Toast.LENGTH_LONG
+                ).show()
+                return@launch
+            }
+            val duplicate = withContext(Dispatchers.IO) {
+                AppDatabase.getInstance(this@ConfirmActivity).receiptDao()
+                    .getByPaymentTimeExcludingId(
+                        savedReceipt.paymentTime,
+                        savedReceipt.sourceApp,
+                        savedReceipt.id.coerceAtLeast(-1L)
+                    )
+            }
+            if (duplicate != null) {
+                Toast.makeText(
+                    this@ConfirmActivity,
+                    org.caojun.shotocr.accounting.R.string.duplicate_payment_time,
+                    Toast.LENGTH_LONG
+                ).show()
+                return@launch
+            }
             if (savedReceipt.id > 0) {
                 AccountingManager.update(savedReceipt)
             } else {

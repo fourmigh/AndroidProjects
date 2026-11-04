@@ -38,6 +38,15 @@
             android:foregroundServiceType="dataSync" />
 
         <service
+            android:name=".batch.BatchCaptureService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <service
+            android:name=".batch.BatchControlOverlayService"
+            android:exported="false" />
+
+        <service
             android:name=".QuickCaptureTileService"
             android:exported="true"
             android:label="@string/app_name"
@@ -70,6 +79,12 @@
             android:name=".RecognitionSettingsActivity"
             android:exported="false"
             android:label="@string/recognition_settings"
+            android:theme="@style/Theme.ShotOCR" />
+
+        <activity
+            android:name=".batch.BatchResultActivity"
+            android:exported="false"
+            android:label="@string/batch_result_title"
             android:theme="@style/Theme.ShotOCR" />
     </application>
 

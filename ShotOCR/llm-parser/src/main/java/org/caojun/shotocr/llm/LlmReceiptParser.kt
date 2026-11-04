@@ -23,9 +23,10 @@ class LlmReceiptParser(
         var data = ReceiptJsonMapper.map(output, normalizedText)
         // 防止小模型照抄示例：用 OCR 中明确出现的金额做校验/纠正。
         data = ReceiptAmountResolver.resolve(data, normalizedText)
-        // 支付时间/订单号确定性兜底。
+        // 支付时间/订单号确定性兜底。订单号只接受 OCR 中可见的支付标签，
+        // 避免订单号折叠时模型照抄示例或误用商家单号。
         PaymentTimeResolver.resolve(normalizedText)?.let { data = data.copy(paymentTime = it) }
-        OrderNumberResolver.resolve(normalizedText)?.let { data = data.copy(orderNumber = it) }
+        data = data.copy(orderNumber = OrderNumberResolver.resolve(normalizedText))
         return data
     }
 

@@ -21,6 +21,21 @@ class OcrTextNormalizerTest {
     }
 
     @Test
+    fun keepsAmountBeforePaymentStatusAnchor() {
+        val raw = """
+            蚂蚁财富-蚂蚁（杭州）基金销售有限公司
+            400.00
+            支付成功,份额确认中
+            账单管理
+        """.trimIndent()
+
+        val normalized = OcrTextNormalizer.normalize(raw)
+
+        assertTrue(normalized.startsWith("蚂蚁财富"))
+        assertTrue(normalized.contains("400.00"))
+    }
+
+    @Test
     fun insertsSpaceBetweenDateAndTime() {
         assertEquals(
             "支付时间\n2026-10-20 07:07:57",

@@ -33,6 +33,7 @@ import kotlinx.coroutines.launch
 import org.caojun.shotocr.accounting.AccountingManager
 import org.caojun.shotocr.accounting.EditableReceipt
 import org.caojun.shotocr.accounting.formatPaymentTime
+import org.caojun.shotocr.accounting.parsePaymentDate
 import org.caojun.shotocr.classification.repository.CategoryRepository
 import org.caojun.shotocr.classification.ui.CategorySelectField
 
@@ -66,6 +67,7 @@ fun ConfirmScreen(
     val clipboardManager = LocalClipboardManager.current
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val isAutoBatch = receipt.isAutoBatch
 
     BackHandler(enabled = !showCancelDialog) {
         if (askDeleteOnCancel) showCancelDialog = true else onCancel()
@@ -391,21 +393,56 @@ fun ConfirmScreen(
                 paymentMethod = paymentMethod,
                 orderNumber = orderNumber,
                 sourceApp = sourceApp,
-                categoryId = categoryId
+                categoryId = categoryId,
+                origin = receipt.origin
             )
-            val saveEnabled = receipt.id <= 0 || currentReceipt != receipt
+            val hasPaymentTime = paymentTime.isNotBlank() &&
+                parsePaymentDate(paymentTime) != null &&
+                Regex("""\d{1,2}:\d{2}""").containsMatchIn(paymentTime)
+            val saveEnabled = hasPaymentTime &&
+                (isAutoBatch || receipt.id <= 0 || currentReceipt != receipt)
+            val savedReceipt = if (isAutoBatch) {
+                currentReceipt.copy(origin = EditableReceipt.ORIGIN_REVIEWED)
+            } else {
+                currentReceipt
+            }
+
+            if (isAutoBatch) {
+                Text(
+                    text = stringResource(org.caojun.shotocr.accounting.R.string.auto_batch_review_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+            }
+            if (!hasPaymentTime) {
+                Text(
+                    text = stringResource(org.caojun.shotocr.accounting.R.string.payment_time_required),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+            }
 
             Button(
                 onClick = {
                     scope.launch {
                         showSaveToast = true
-                        onSaved(currentReceipt)
+                        onSaved(savedReceipt)
                     }
                 },
                 enabled = saveEnabled,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text(stringResource(org.caojun.shotocr.accounting.R.string.save))
+                Text(
+                    stringResource(
+                        if (isAutoBatch) {
+                            org.caojun.shotocr.accounting.R.string.review_save
+                        } else {
+                            org.caojun.shotocr.accounting.R.string.save
+                        }
+                    )
+                )
             }
 
             if (showSaveToast) {

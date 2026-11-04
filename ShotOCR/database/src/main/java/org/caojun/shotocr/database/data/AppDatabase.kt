@@ -24,12 +24,18 @@ abstract class AppDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
+        private const val DATABASE_NAME = "shotocr.db"
+        private const val RESET_PREFS = "shotocr_db_reset"
+        private const val RESET_KEY = "origin_field_reset_v1"
+
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
+                val appContext = context.applicationContext
+                resetLegacyDatabaseOnce(appContext)
                 Room.databaseBuilder(
-                    context.applicationContext,
+                    appContext,
                     AppDatabase::class.java,
-                    "shotocr.db"
+                    DATABASE_NAME
                 )
                     // 不维护迁移：结构变更时直接重建数据库（升级/降级都允许）。
                     .fallbackToDestructiveMigration(true)
@@ -78,6 +84,14 @@ abstract class AppDatabase : RoomDatabase() {
                     })
                     .build().also { INSTANCE = it }
             }
+        }
+
+        /** origin 字段引入时保持 version=1，只在首次运行时删除旧库。 */
+        private fun resetLegacyDatabaseOnce(context: Context) {
+            val prefs = context.getSharedPreferences(RESET_PREFS, Context.MODE_PRIVATE)
+            if (prefs.getBoolean(RESET_KEY, false)) return
+            context.deleteDatabase(DATABASE_NAME)
+            prefs.edit().putBoolean(RESET_KEY, true).apply()
         }
     }
 }

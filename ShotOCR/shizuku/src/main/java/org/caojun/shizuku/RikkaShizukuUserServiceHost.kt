@@ -4,6 +4,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.ServiceConnection
 import android.os.IBinder
+import android.os.SystemClock
 import android.util.Log
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
@@ -29,13 +30,17 @@ class RikkaShizukuUserServiceHost(context: Context) : ShizukuUserServiceHost {
             .version(serviceVersion)
 
         var continuation: kotlinx.coroutines.CancellableContinuation<IBinder?>? = null
+        val started = SystemClock.elapsedRealtime()
+        Log.i(TAG, "bind start: ${serviceClass.name} timeoutMs=$timeoutMs")
 
         val connection = object : ServiceConnection {
             override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
+                Log.i(TAG, "connected: ${serviceClass.simpleName}")
                 continuation?.takeIf { it.isActive }?.resume(service)
             }
 
             override fun onServiceDisconnected(name: ComponentName?) {
+                Log.w(TAG, "disconnected: ${serviceClass.simpleName}")
                 continuation?.takeIf { it.isActive }?.resume(null)
             }
         }
@@ -47,15 +52,28 @@ class RikkaShizukuUserServiceHost(context: Context) : ShizukuUserServiceHost {
                     try {
                         Shizuku.bindUserService(args, connection)
                     } catch (t: Throwable) {
-                        Log.e(TAG, "bindUserService failed", t)
+                        Log.e(TAG, "bindUserService failed: ${serviceClass.simpleName}", t)
                         if (cont.isActive) cont.resume(null)
                     }
                 }
-            } ?: return null
-
+            }
+            if (binder == null) {
+                Log.w(
+                    TAG,
+                    "bind failed or timeout: ${serviceClass.simpleName} elapsedMs=${SystemClock.elapsedRealtime() - started}"
+                )
+                return null
+            }
+            Log.i(
+                TAG,
+                "bind ready: ${serviceClass.simpleName} elapsedMs=${SystemClock.elapsedRealtime() - started}"
+            )
             return block(binder)
         } finally {
-            runCatching { Shizuku.unbindUserService(args, connection, true) }
+            val unbind = runCatching { Shizuku.unbindUserService(args, connection, true) }
+            unbind.exceptionOrNull()?.let {
+                Log.w(TAG, "unbind failed: ${serviceClass.simpleName}", it)
+            }
         }
     }
 

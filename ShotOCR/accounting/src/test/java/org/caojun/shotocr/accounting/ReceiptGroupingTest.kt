@@ -18,7 +18,8 @@ class ReceiptGroupingTest {
         amount: String = "",
         discount: String = "",
         originalAmount: String = "",
-        id: Long = 0
+        id: Long = 0,
+        origin: String = EditableReceipt.ORIGIN_REVIEWED
     ): EditableReceipt {
         return EditableReceipt(
             id = id,
@@ -27,7 +28,8 @@ class ReceiptGroupingTest {
             paymentTime = paymentTime,
             amount = amount,
             discount = discount,
-            originalAmount = originalAmount
+            originalAmount = originalAmount,
+            origin = origin
         )
     }
 
@@ -181,5 +183,56 @@ class ReceiptGroupingTest {
         assertEquals(0, totals.count)
         assertEquals(BigDecimal.ZERO, totals.totalAmount)
         assertEquals(BigDecimal.ZERO, totals.discountRate)
+    }
+
+    @Test
+    fun totals_excludesAutoBatchRecords() {
+        val auto = receipt(
+            paymentTime = "2026-10-20 10:00:00",
+            amount = "100",
+            id = 1,
+            origin = EditableReceipt.ORIGIN_AUTO_BATCH
+        )
+        val manual = receipt(
+            paymentTime = "2026-10-20 11:00:00",
+            amount = "10",
+            id = 2,
+            origin = EditableReceipt.ORIGIN_MANUAL
+        )
+        val reviewed = receipt(
+            paymentTime = "2026-10-20 12:00:00",
+            amount = "20",
+            id = 3,
+            origin = EditableReceipt.ORIGIN_REVIEWED
+        )
+
+        val totals = totalsOf(listOf(auto, manual, reviewed))
+
+        assertEquals(2, totals.count)
+        assertEquals("30", totals.totalAmount.toPlainString())
+    }
+
+    @Test
+    fun monthAndWeekTotalsExcludeAutoBatchButKeepRecords() {
+        val auto = receipt(
+            paymentTime = "2026-10-20 10:00:00",
+            amount = "100",
+            id = 1,
+            origin = EditableReceipt.ORIGIN_AUTO_BATCH
+        )
+        val manual = receipt(
+            paymentTime = "2026-10-20 11:00:00",
+            amount = "10",
+            id = 2,
+            origin = EditableReceipt.ORIGIN_MANUAL
+        )
+
+        val grouped = buildGroupedData(listOf(auto, manual), DayOfWeek.MONDAY)
+
+        assertEquals(2, grouped.months.single().weeks.single().receipts.size)
+        assertEquals(1, grouped.months.single().weeks.single().totals.count)
+        assertEquals("10", grouped.months.single().weeks.single().totals.totalAmount.toPlainString())
+        assertEquals(1, grouped.months.single().totals.count)
+        assertEquals("10", grouped.months.single().totals.totalAmount.toPlainString())
     }
 }

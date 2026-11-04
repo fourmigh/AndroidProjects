@@ -370,6 +370,15 @@ fun BillCard(receipt: EditableReceipt, index: Int) {
 
             Spacer(modifier = Modifier.height(4.dp))
 
+            if (receipt.isAutoBatch) {
+                Text(
+                    text = stringResource(R.string.auto_batch_pending),
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+            }
+
             if (receipt.amount.isNotEmpty()) {
                 Text(
                     text = stringResource(R.string.paid_amount, receipt.amount),
