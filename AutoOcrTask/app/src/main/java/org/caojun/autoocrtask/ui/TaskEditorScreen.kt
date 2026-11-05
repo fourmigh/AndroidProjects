@@ -49,6 +49,7 @@ import org.caojun.autoocrtask.data.LaunchSpec
 import org.caojun.autoocrtask.data.LaunchType
 import org.caojun.autoocrtask.data.StepType
 import org.caojun.autoocrtask.recorder.RecorderSession
+import org.caojun.autoocrtask.recorder.RecorderStartResult
 import org.caojun.autoocrtask.recorder.RecorderStarter
 import org.caojun.segmented.SegmentedControl
 
@@ -293,7 +294,7 @@ fun TaskEditorScreen(
                         )
                         return@Button
                     }
-                    val started = RecorderStarter.start(
+                    when (RecorderStarter.start(
                         context = context,
                         taskId = existing?.id,
                         name = name.trim(),
@@ -304,13 +305,51 @@ fun TaskEditorScreen(
                             uri = uri.trim()
                         ),
                         existingSteps = steps.toList()
-                    )
-                    if (!started) {
-                        Toast.makeText(
-                            context,
-                            context.getString(R.string.editor_recorder_failed),
-                            Toast.LENGTH_LONG
-                        ).show()
+                    )) {
+                        RecorderStartResult.OK -> Unit
+
+                        RecorderStartResult.NO_OVERLAY_PERMISSION -> {
+                            Toast.makeText(
+                                context,
+                                R.string.editor_recorder_permission,
+                                Toast.LENGTH_LONG
+                            ).show()
+                            overlayPermissionLauncher.launch(
+                                RecorderStarter.permissionIntent(context)
+                            )
+                        }
+
+                        RecorderStartResult.SHIZUKU_NOT_RUNNING -> {
+                            Toast.makeText(
+                                context,
+                                R.string.recorder_error_shizuku_not_running,
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+
+                        RecorderStartResult.SHIZUKU_NOT_GRANTED -> {
+                            Toast.makeText(
+                                context,
+                                R.string.recorder_error_shizuku_not_granted,
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+
+                        RecorderStartResult.PACKAGE_MISSING -> {
+                            Toast.makeText(
+                                context,
+                                R.string.editor_save_invalid,
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+
+                        RecorderStartResult.SERVICE_FAILED -> {
+                            Toast.makeText(
+                                context,
+                                R.string.editor_recorder_failed,
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
                     }
                 },
                 modifier = Modifier.fillMaxWidth()

@@ -12,8 +12,11 @@ import android.graphics.PixelFormat
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.text.TextUtils
+import android.util.Log
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.view.WindowManager
@@ -27,12 +30,15 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
+import kotlin.math.abs
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import org.caojun.autoocrtask.R
@@ -52,21 +58,33 @@ class RecorderOverlayService : LifecycleService() {
     companion object {
         const val ACTION_STOP = "org.caojun.autoocrtask.action.STOP_RECORDER"
 
+        private const val TAG = "AutoOcrTask/Recorder"
         private const val CHANNEL_ID = "recorder"
         private const val NOTIFICATION_ID = 2002
-        private const val SESSION_WAIT_MS = 20_000L
+        private const val SESSION_WAIT_MS = 10_000L
+        private const val TARGET_SETTLE_MS = 700L
         private const val CLICK_SETTLE_MS = 900L
     }
 
     private lateinit var windowManager: WindowManager
     private var controlBar: View? = null
     private var panelView: View? = null
+    private var panelParams: WindowManager.LayoutParams? = null
+    private var panelX = 0
+    private var panelY = 0
+    private var panelPositionSet = false
+    private var controlParams: WindowManager.LayoutParams? = null
+    private var controlX = 0
+    private var controlY = 0
+    private var controlPositionSet = false
+    private var currentStatus: String? = null
     private var statusView: TextView? = null
     private var countView: TextView? = null
 
     @Volatile
     private var session: ShizukuUiAutomationSession? = null
     private var ocr: OcrEngine? = null
+    private val ocrMutex = Mutex()
     private var sessionJob: Job? = null
 
     @Volatile
@@ -86,6 +104,13 @@ class RecorderOverlayService : LifecycleService() {
     private var pendingSwipeDirection = SwipeDirection.UP
     private var pendingSwipeDistance = 0.5f
     private var pendingSwipeDurationMs = 500
+
+    private var scanMode = StepType.WAIT_TEXT
+    private var scanResult: ScanResult? = null
+    private var ocrRunning = false
+
+    @Volatile
+    private var connecting = false
 
     private val timeoutValues = listOf(3_000L, 5_000L, 8_000L, 10_000L, 15_000L, 30_000L)
     private val waitTimeoutValues = listOf(5_000L, 10_000L, 15_000L, 30_000L)
@@ -133,6 +158,39 @@ class RecorderOverlayService : LifecycleService() {
             failAndStop(getString(R.string.run_task_missing))
             return
         }
+        Log.i(TAG, "beginRecording: package=${draft.packageName}")
+        connecting = true
+        busy = true
+
+        addControlBar()
+        if (controlBar == null) {
+            failAndStop(getString(R.string.editor_recorder_permission))
+            return
+        }
+        updateCount(draft.recordedSteps.size)
+        updateStatus(getString(R.string.recorder_status_connecting))
+
+        // 先在 AutoOcrTask 仍在前台时绑定 Shizuku，避免目标 App 启动后
+        // AutoOcrTask 退到后台导致 UserService 绑定失败。
+        Log.i(TAG, "shizuku bind start")
+        val ready = CompletableDeferred<ShizukuUiAutomationSession?>()
+        sessionJob = lifecycleScope.launch {
+            ShizukuUiAutomation(this@RecorderOverlayService).withSession { bound ->
+                session = bound
+                ready.complete(bound)
+                awaitCancellation()
+            }
+            if (!ready.isCompleted) ready.complete(null)
+        }
+
+        val bound = withTimeoutOrNull(SESSION_WAIT_MS) { ready.await() }
+        if (finished) return
+        if (bound == null) {
+            Log.w(TAG, "shizuku bind failed or timeout")
+            failAndStop(getString(R.string.recorder_error_shizuku_connect))
+            return
+        }
+        Log.i(TAG, "shizuku bind success")
 
         val task = AutomationTask(
             id = draft.taskId ?: "recorder",
@@ -151,33 +209,15 @@ class RecorderOverlayService : LifecycleService() {
             failAndStop(getString(R.string.run_launch_failed))
             return
         }
+        Log.i(TAG, "target launched: ${task.packageName}")
 
-        delay(700)
-        addControlBar()
-        if (controlBar == null) {
-            failAndStop(getString(R.string.editor_recorder_permission))
-            return
-        }
-        updateCount(draft.recordedSteps.size)
-        updateStatus(getString(R.string.recorder_status_connecting))
-
-        val ready = CompletableDeferred<ShizukuUiAutomationSession?>()
-        sessionJob = lifecycleScope.launch {
-            ShizukuUiAutomation(this@RecorderOverlayService).withSession { bound ->
-                session = bound
-                ready.complete(bound)
-                awaitCancellation()
-            }
-            if (!ready.isCompleted) ready.complete(null)
-        }
-
-        val bound = withTimeoutOrNull(SESSION_WAIT_MS) { ready.await() }
-        if (finished) return
-        if (bound == null) {
-            failAndStop(getString(R.string.run_start_failed))
-            return
-        }
+        delay(TARGET_SETTLE_MS)
+        connecting = false
+        busy = false
         updateStatus(getString(R.string.recorder_status_ready))
+
+        // 后台预热 OCR，首次打开识别面板时无需再等模型加载。
+        lifecycleScope.launch { ensureOcr() }
     }
 
     // ---------- 控制条 ----------
@@ -235,27 +275,105 @@ class RecorderOverlayService : LifecycleService() {
         )
         root.addView(buttonRow)
 
+        val screenWidth = resources.displayMetrics.widthPixels
+        val screenHeight = resources.displayMetrics.heightPixels
         val lp = WindowManager.LayoutParams(
             WRAP_CONTENT,
             WRAP_CONTENT,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
             PixelFormat.TRANSLUCENT
         ).apply {
-            gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-            y = dp(80)
+            gravity = Gravity.TOP or Gravity.START
+            x = if (controlPositionSet) controlX else (screenWidth / 4)
+            y = if (controlPositionSet) controlY else dp(80)
         }
 
         if (runCatching { windowManager.addView(root, lp) }.isSuccess) {
             controlBar = root
+            controlParams = lp
+            controlX = lp.x
+            controlY = lp.y
+            attachControlDrag(root, lp)
+            if (!controlPositionSet) {
+                root.post {
+                    if (controlBar !== root) return@post
+                    val barWidth = root.width.takeIf { it > 0 } ?: return@post
+                    lp.x = ((screenWidth - barWidth) / 2).coerceAtLeast(0)
+                    controlX = lp.x
+                    runCatching { windowManager.updateViewLayout(root, lp) }
+                }
+            } else {
+                statusView?.text = currentStatus
+            }
             updateCount(RecorderSession.current(this)?.recordedSteps?.size ?: 0)
+        }
+    }
+
+    private fun attachControlDrag(bar: View, params: WindowManager.LayoutParams) {
+        val touchSlop = ViewConfiguration.get(this).scaledTouchSlop
+        var downRawX = 0f
+        var downRawY = 0f
+        var startX = 0
+        var startY = 0
+        var dragging = false
+
+        bar.setOnTouchListener { _, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    downRawX = event.rawX
+                    downRawY = event.rawY
+                    startX = params.x
+                    startY = params.y
+                    dragging = false
+                    true
+                }
+
+                MotionEvent.ACTION_MOVE -> {
+                    val dx = event.rawX - downRawX
+                    val dy = event.rawY - downRawY
+                    if (!dragging && (abs(dx) > touchSlop || abs(dy) > touchSlop)) {
+                        dragging = true
+                    }
+                    if (dragging) {
+                        val screenWidth = resources.displayMetrics.widthPixels
+                        val screenHeight = resources.displayMetrics.heightPixels
+                        val barWidth = bar.width.takeIf { it > 0 } ?: params.width
+                        val barHeight = bar.height.takeIf { it > 0 } ?: 0
+                        val maxX = (screenWidth - barWidth).coerceAtLeast(0)
+                        val maxY = (screenHeight - barHeight).coerceAtLeast(0)
+                        params.x = (startX + dx.toInt()).coerceIn(0, maxX)
+                        params.y = (startY + dy.toInt()).coerceIn(0, maxY)
+                        runCatching { windowManager.updateViewLayout(bar, params) }
+                        controlX = params.x
+                        controlY = params.y
+                        controlPositionSet = true
+                    }
+                    true
+                }
+
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    if (dragging) {
+                        // 部分机型 updateViewLayout 不刷新输入区域，
+                        // 拖动结束后重建窗口，确保新位置的按钮可点击。
+                        bar.post {
+                            if (finished) return@post
+                            removeControlBar()
+                            addControlBar()
+                        }
+                    }
+                    true
+                }
+
+                else -> false
+            }
         }
     }
 
     private fun removeControlBar() {
         controlBar?.let { runCatching { windowManager.removeView(it) } }
         controlBar = null
+        controlParams = null
         statusView = null
         countView = null
     }
@@ -263,6 +381,10 @@ class RecorderOverlayService : LifecycleService() {
     // ---------- 动作面板 ----------
 
     private fun showActionPanel() {
+        if (connecting) {
+            toast(getString(R.string.recorder_status_connecting))
+            return
+        }
         if (busy) {
             toast(getString(R.string.recorder_status_scanning))
             return
@@ -333,22 +455,39 @@ class RecorderOverlayService : LifecycleService() {
             return
         }
         busy = true
+        scanMode = mode
         updateStatus(getString(R.string.recorder_status_scanning))
         lifecycleScope.launch {
             try {
-                val elements = scanElements(active)
+                val result = scanElements(active, includeOcr = true)
                 if (finished) return@launch
-                if (elements.isEmpty()) {
-                    updateStatus(getString(R.string.recorder_status_no_elements))
-                    toast(getString(R.string.recorder_status_no_elements))
-                } else {
-                    pendingExact = false
-                    pendingUseOcr = true
-                    pendingTimeoutMs =
-                        if (mode == StepType.WAIT_TEXT) 15_000L else 8_000L
-                    updateStatus(getString(R.string.recorder_status_ready))
-                    showElementPanel(elements, mode)
-                }
+                scanResult = result
+                pendingExact = false
+                pendingUseOcr = true
+                pendingTimeoutMs =
+                    if (mode == StepType.WAIT_TEXT) 15_000L else 8_000L
+                updateStatus(getString(R.string.recorder_status_ready))
+                showElementPanel(mode)
+            } catch (t: Throwable) {
+                updateStatus(t.message ?: getString(R.string.recorder_status_scan_failed))
+            } finally {
+                busy = false
+            }
+        }
+    }
+
+    private fun refreshElementScan() {
+        if (busy) return
+        val active = session ?: return
+        busy = true
+        updateStatus(getString(R.string.recorder_status_scanning))
+        lifecycleScope.launch {
+            try {
+                val result = scanElements(active, includeOcr = true)
+                if (finished) return@launch
+                scanResult = result
+                updateStatus(getString(R.string.recorder_status_ready))
+                showElementPanel(scanMode)
             } catch (t: Throwable) {
                 updateStatus(t.message ?: getString(R.string.recorder_status_scan_failed))
             } finally {
@@ -358,8 +497,9 @@ class RecorderOverlayService : LifecycleService() {
     }
 
     private suspend fun scanElements(
-        active: ShizukuUiAutomationSession
-    ): List<ScreenElement> {
+        active: ShizukuUiAutomationSession,
+        includeOcr: Boolean
+    ): ScanResult {
         val scanner = ScreenElementScanner(
             session = active,
             ocrProvider = { ensureOcr() },
@@ -368,18 +508,20 @@ class RecorderOverlayService : LifecycleService() {
             appPackage = packageName
         )
         controlBar?.visibility = View.GONE
+        panelView?.visibility = View.GONE
         return try {
-            delay(80)
-            scanner.scan()
+            delay(150)
+            scanner.scan(includeOcr)
         } finally {
             controlBar?.visibility = View.VISIBLE
+            panelView?.visibility = View.VISIBLE
         }
     }
 
-    private suspend fun ensureOcr(): OcrEngine? {
-        ocr?.let { return it }
+    private suspend fun ensureOcr(): OcrEngine? = ocrMutex.withLock {
+        ocr?.let { return@withLock it }
         val engine = OcrEngine(applicationContext)
-        return try {
+        try {
             withContext(Dispatchers.Default) { engine.initialize() }
             ocr = engine
             engine
@@ -389,13 +531,51 @@ class RecorderOverlayService : LifecycleService() {
         }
     }
 
-    private fun showElementPanel(elements: List<ScreenElement>, mode: StepType) {
+    private fun showElementPanel(mode: StepType) {
+        val result = scanResult ?: return
         val title = when (mode) {
             StepType.WAIT_TEXT -> getString(R.string.recorder_title_wait_text)
             StepType.TAP_POINT -> getString(R.string.recorder_title_tap_point)
             else -> getString(R.string.recorder_title_tap_text)
         }
         val root = createPanel(title) { removePanel() }
+
+        val statusText = when {
+            ocrRunning -> getString(R.string.recorder_ocr_running)
+            result.ocrError == "OCR_UNAVAILABLE" ->
+                getString(R.string.recorder_ocr_unavailable)
+
+            result.ocrError == "SCREENSHOT_FAILED" ->
+                getString(R.string.recorder_screenshot_failed)
+
+            result.ocrUsed && result.ocrError != null ->
+                getString(R.string.recorder_ocr_failed, result.ocrError)
+
+            result.ocrUsed ->
+                getString(R.string.recorder_scan_source, result.uiCount, result.ocrCount)
+
+            else -> getString(R.string.recorder_scan_ui_only, result.uiCount)
+        }
+        root.addView(sectionLabel(statusText))
+
+        if (result.totalCount > result.elements.size) {
+            root.addView(
+                TextView(this).apply {
+                    text = getString(
+                        R.string.recorder_scan_truncated,
+                        result.totalCount,
+                        result.elements.size
+                    )
+                    setTextColor(0xFFFFB74D.toInt())
+                    textSize = 12f
+                }
+            )
+        }
+
+        root.addView(
+            actionButton(getString(R.string.recorder_refresh_scan)) { refreshElementScan() },
+            actionButtonParams()
+        )
 
         if (mode != StepType.TAP_POINT) {
             root.addView(buildSwitch(getString(R.string.recorder_param_exact), pendingExact) {
@@ -416,9 +596,20 @@ class RecorderOverlayService : LifecycleService() {
             )
         }
 
+        if (result.elements.isEmpty()) {
+            root.addView(
+                TextView(this).apply {
+                    text = getString(R.string.recorder_scan_empty_hint)
+                    setTextColor(0xFFBDBDBD.toInt())
+                    textSize = 13f
+                    setPadding(0, dp(8), 0, dp(8))
+                }
+            )
+        }
+
         val scroll = ScrollView(this)
         val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        elements.forEach { element -> list.addView(buildElementRow(element, mode)) }
+        result.elements.forEach { element -> list.addView(buildElementRow(element, mode)) }
         scroll.addView(list)
         root.addView(scroll, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f))
 
@@ -443,6 +634,16 @@ class RecorderOverlayService : LifecycleService() {
             },
             LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f)
         )
+        if (element.fromOcr) {
+            row.addView(
+                TextView(this).apply {
+                    text = getString(R.string.recorder_source_ocr)
+                    setTextColor(0xFF80CBC4.toInt())
+                    textSize = 11f
+                    setPadding(dp(6), 0, dp(4), 0)
+                }
+            )
+        }
         if (mode != StepType.WAIT_TEXT) {
             row.addView(
                 TextView(this).apply {
@@ -465,6 +666,10 @@ class RecorderOverlayService : LifecycleService() {
         mode: StepType,
         byCoordinate: Boolean
     ) {
+        if (busy) {
+            toast(getString(R.string.recorder_status_scanning))
+            return
+        }
         val width = resources.displayMetrics.widthPixels.coerceAtLeast(1)
         val height = resources.displayMetrics.heightPixels.coerceAtLeast(1)
 
@@ -769,35 +974,109 @@ class RecorderOverlayService : LifecycleService() {
 
     private fun showPanel(root: View, heightFraction: Float? = null) {
         removePanel()
-        val width = (resources.displayMetrics.widthPixels * 0.92f).toInt()
+        val screenWidth = resources.displayMetrics.widthPixels
+        val screenHeight = resources.displayMetrics.heightPixels
+        val width = (screenWidth * 0.92f).toInt()
         val height = if (heightFraction != null) {
-            (resources.displayMetrics.heightPixels * heightFraction).toInt()
+            (screenHeight * heightFraction).toInt()
         } else {
             WRAP_CONTENT
         }
+        val maxX = (screenWidth - width).coerceAtLeast(0)
+        val initialX = if (panelPositionSet) panelX else (maxX / 2)
+        val initialY = if (panelPositionSet) panelY else (screenHeight * 0.15f).toInt()
+        val maxY = if (height > 0) {
+            (screenHeight - height).coerceAtLeast(0)
+        } else {
+            (screenHeight - 100).coerceAtLeast(0)
+        }
+
         val lp = WindowManager.LayoutParams(
             width,
             height,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
             PixelFormat.TRANSLUCENT
         ).apply {
-            gravity = Gravity.CENTER
+            gravity = Gravity.TOP or Gravity.START
+            x = initialX.coerceIn(0, maxX)
+            y = initialY.coerceIn(0, maxY)
         }
+
         if (runCatching { windowManager.addView(root, lp) }.isSuccess) {
             panelView = root
+            panelParams = lp
+            panelX = lp.x
+            panelY = lp.y
+            panelPositionSet = true
+            attachPanelDrag(root, lp)
+        }
+    }
+
+    private fun attachPanelDrag(panel: View, params: WindowManager.LayoutParams) {
+        val handle = (panel as? LinearLayout)?.getChildAt(0) ?: return
+        val touchSlop = ViewConfiguration.get(this).scaledTouchSlop
+        var downRawX = 0f
+        var downRawY = 0f
+        var startX = 0
+        var startY = 0
+        var dragging = false
+
+        handle.setOnTouchListener { _, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    downRawX = event.rawX
+                    downRawY = event.rawY
+                    startX = params.x
+                    startY = params.y
+                    dragging = false
+                    true
+                }
+
+                MotionEvent.ACTION_MOVE -> {
+                    val dx = event.rawX - downRawX
+                    val dy = event.rawY - downRawY
+                    if (!dragging && (abs(dx) > touchSlop || abs(dy) > touchSlop)) {
+                        dragging = true
+                    }
+                    if (dragging) {
+                        val screenWidth = resources.displayMetrics.widthPixels
+                        val screenHeight = resources.displayMetrics.heightPixels
+                        val panelWidth = panel.width.takeIf { it > 0 } ?: params.width
+                        val panelHeight = panel.height.takeIf { it > 0 } ?: 0
+                        val maxX = (screenWidth - panelWidth).coerceAtLeast(0)
+                        val maxY = (screenHeight - panelHeight).coerceAtLeast(0)
+                        params.x = (startX + dx.toInt()).coerceIn(0, maxX)
+                        params.y = (startY + dy.toInt()).coerceIn(0, maxY)
+                        runCatching { windowManager.updateViewLayout(panel, params) }
+                        panelX = params.x
+                        panelY = params.y
+                        panelPositionSet = true
+                    }
+                    true
+                }
+
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    if (dragging) {
+                        runCatching { windowManager.updateViewLayout(panel, params) }
+                    }
+                    true
+                }
+
+                else -> false
+            }
         }
     }
 
     private fun removePanel() {
         panelView?.let { runCatching { windowManager.removeView(it) } }
         panelView = null
+        panelParams = null
     }
 
     private fun panelBackground(): GradientDrawable = GradientDrawable().apply {
         cornerRadius = dp(16).toFloat()
-        setColor(0xF0212121.toInt())
+        setColor(0xFF212121.toInt())
     }
 
     private fun sectionLabel(text: String): TextView = TextView(this).apply {
@@ -940,12 +1219,23 @@ class RecorderOverlayService : LifecycleService() {
     }
 
     private fun failAndStop(message: String) {
+        Log.w(TAG, "failAndStop: $message")
         updateStatus(message)
         toast(message)
         teardown(returnToEditor = true)
     }
 
     private fun teardown(returnToEditor: Boolean) {
+        Log.i(TAG, "teardown: returnToEditor=$returnToEditor")
+        connecting = false
+        busy = false
+        ocrRunning = false
+        panelPositionSet = false
+        panelX = 0
+        panelY = 0
+        controlPositionSet = false
+        controlX = 0
+        controlY = 0
         removePanel()
         removeControlBar()
         sessionJob?.cancel()
@@ -970,6 +1260,7 @@ class RecorderOverlayService : LifecycleService() {
     // ---------- 通知/状态 ----------
 
     private fun updateStatus(text: String) {
+        currentStatus = text
         statusView?.text = text
         updateNotification(text)
     }

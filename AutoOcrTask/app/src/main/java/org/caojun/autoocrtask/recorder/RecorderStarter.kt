@@ -7,6 +7,16 @@ import android.provider.Settings
 import androidx.core.content.ContextCompat
 import org.caojun.autoocrtask.data.AutomationStep
 import org.caojun.autoocrtask.data.LaunchSpec
+import org.caojun.shizuku.RikkaShizukuGateway
+
+enum class RecorderStartResult {
+    OK,
+    NO_OVERLAY_PERMISSION,
+    SHIZUKU_NOT_RUNNING,
+    SHIZUKU_NOT_GRANTED,
+    PACKAGE_MISSING,
+    SERVICE_FAILED
+}
 
 object RecorderStarter {
 
@@ -25,9 +35,21 @@ object RecorderStarter {
         packageName: String,
         launch: LaunchSpec,
         existingSteps: List<AutomationStep>
-    ): Boolean {
-        if (!isPermissionGranted(context)) return false
-        if (packageName.isBlank()) return false
+    ): RecorderStartResult {
+        if (!isPermissionGranted(context)) {
+            return RecorderStartResult.NO_OVERLAY_PERMISSION
+        }
+        if (packageName.isBlank()) {
+            return RecorderStartResult.PACKAGE_MISSING
+        }
+
+        val gateway = RikkaShizukuGateway(context.applicationContext)
+        if (!gateway.isRunning()) {
+            return RecorderStartResult.SHIZUKU_NOT_RUNNING
+        }
+        if (!gateway.isPermissionGranted()) {
+            return RecorderStartResult.SHIZUKU_NOT_GRANTED
+        }
 
         RecorderSession.begin(
             context = context,
@@ -38,11 +60,13 @@ object RecorderStarter {
             existingSteps = existingSteps
         )
 
-        return runCatching {
+        val started = runCatching {
             ContextCompat.startForegroundService(
                 context,
                 Intent(context, RecorderOverlayService::class.java)
             )
         }.isSuccess
+
+        return if (started) RecorderStartResult.OK else RecorderStartResult.SERVICE_FAILED
     }
 }

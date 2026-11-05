@@ -16,9 +16,18 @@ data class ScreenElement(
     val fromOcr: Boolean
 )
 
+data class ScanResult(
+    val elements: List<ScreenElement>,
+    val uiCount: Int,
+    val ocrCount: Int,
+    val totalCount: Int,
+    val ocrUsed: Boolean,
+    val ocrError: String?
+)
+
 /**
- * 读取当前屏幕可点击元素：优先 UI 树，OCR 作为补充。
- * 返回按从上到下、从左到右排序的候选列表。
+ * 读取当前屏幕文字：优先 UI 树，按需合并 OCR。
+ * 默认只读 UI 树；[scan] 的 includeOcr=true 时执行截图 OCR。
  */
 class ScreenElementScanner(
     private val session: ShizukuUiAutomationSession,
@@ -28,19 +37,33 @@ class ScreenElementScanner(
     private val appPackage: String
 ) {
 
-    suspend fun scan(): List<ScreenElement> {
-        val all = mutableListOf<ScreenElement>()
+    suspend fun scan(includeOcr: Boolean = false): ScanResult {
+        val ui = mutableListOf<ScreenElement>()
+        runCatching { collectUiTree(ui) }
+        val uiElements = dedupe(ui)
 
-        runCatching { collectUiTree(all) }
-        val uiClickable = dedupe(all).count { it.clickable }
-        if (uiClickable < MIN_CLICKABLE_HINTS) {
-            runCatching { collectOcr(all) }
+        var ocrElements: List<ScreenElement> = emptyList()
+        var ocrError: String? = null
+        if (includeOcr) {
+            val ocr = mutableListOf<ScreenElement>()
+            try {
+                collectOcr(ocr)
+                ocrElements = dedupe(ocr)
+            } catch (t: Throwable) {
+                ocrError = t.message ?: t.javaClass.simpleName
+            }
         }
 
-        val deduped = dedupe(all)
-        val clickable = deduped.filter { it.clickable }
-        val result = if (clickable.size >= MIN_CLICKABLE_HINTS) clickable else deduped
-        return result.take(MAX_ITEMS)
+        val merged = dedupe(uiElements + ocrElements)
+            .sortedWith(compareBy({ it.y }, { it.x }))
+        return ScanResult(
+            elements = merged.take(MAX_ITEMS),
+            uiCount = uiElements.size,
+            ocrCount = ocrElements.size,
+            totalCount = merged.size,
+            ocrUsed = includeOcr,
+            ocrError = ocrError
+        )
     }
 
     private suspend fun collectUiTree(result: MutableList<ScreenElement>) {
@@ -84,10 +107,12 @@ class ScreenElementScanner(
     }
 
     private suspend fun collectOcr(result: MutableList<ScreenElement>) {
-        val bitmap = session.screenshot() ?: return
+        val bitmap = session.screenshot()
+            ?: throw IllegalStateException("SCREENSHOT_FAILED")
         try {
-            val engine = ocrProvider() ?: return
-            val results = runCatching { engine.detect(bitmap) }.getOrNull() ?: return
+            val engine = ocrProvider()
+                ?: throw IllegalStateException("OCR_UNAVAILABLE")
+            val results = engine.detect(bitmap)
             for (item in results) {
                 val text = item.text.trim()
                 if (text.isEmpty() || text.length > MAX_TEXT_LENGTH) continue
@@ -123,15 +148,14 @@ class ScreenElementScanner(
             if (!duplicate) result.add(element)
         }
 
-        return result.sortedWith(compareBy({ it.y }, { it.x }))
+        return result
     }
 
     private fun normalize(text: String): String =
         text.replace(Regex("\\s+"), "")
 
     companion object {
-        private const val MAX_ITEMS = 80
+        const val MAX_ITEMS = 200
         private const val MAX_TEXT_LENGTH = 60
-        private const val MIN_CLICKABLE_HINTS = 3
     }
 }
