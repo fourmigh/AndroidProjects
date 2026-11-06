@@ -1,5 +1,6 @@
 package org.caojun.shotocr.llm
 
+import org.caojun.ai.llm.api.LlmEngineApi
 import org.caojun.shotocr.prefs.MemoryKeyValueStore
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull

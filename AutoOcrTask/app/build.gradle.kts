@@ -1,6 +1,13 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+}
+
+val keystoreProperties = Properties().apply {
+    val file = rootProject.file("../keystore/keystore.properties")
+    if (file.exists()) file.inputStream().use { load(it) }
 }
 
 android {
@@ -19,9 +26,24 @@ android {
         }
     }
 
+    signingConfigs {
+        create("shared") {
+            storeFile = rootProject.file(
+                keystoreProperties.getProperty("storeFile", "../keystore/shared.p12")
+            )
+            storePassword = keystoreProperties.getProperty("storePassword", "android")
+            keyAlias = keystoreProperties.getProperty("keyAlias", "shared")
+            keyPassword = keystoreProperties.getProperty("keyPassword", "android")
+        }
+    }
+
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("shared")
+        }
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("shared")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -54,7 +76,7 @@ dependencies {
     implementation(project(":shizuku"))
     implementation(project(":shizuku-automation"))
     implementation(project(":shizuku-return"))
-    implementation(project(":ocr-engine"))
+    implementation(project(":ocr-api"))
     implementation(project(":prefs"))
     implementation(project(":expandable-card"))
     implementation(project(":floating-button"))

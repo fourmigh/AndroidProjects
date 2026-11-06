@@ -7,14 +7,16 @@ import kotlinx.coroutines.withContext
 import org.caojun.shotocr.R
 import org.caojun.shotocr.batch.BatchDiagnostics
 import org.caojun.shotocr.database.data.AppDatabase
-import org.caojun.shotocr.llm.LlmModelMissingException
+import org.caojun.ai.llm.api.LlmApi
+import org.caojun.ai.llm.api.LlmEngineApi
+import org.caojun.ai.llm.api.LlmException
+import org.caojun.ai.ocr.api.OcrEngine
 import org.caojun.shotocr.llm.LlmReceiptEngine
 import org.caojun.shotocr.llm.LlmReceiptParser
 import org.caojun.shotocr.llm.LlmStores
 import org.caojun.shotocr.llm.ReceiptData
 import org.caojun.shotocr.llm.ReceiptValidator
 import org.caojun.shotocr.llm.SystemPromptProvider
-import org.caojun.shotocr.ocr.OcrEngine
 import org.caojun.shotocr.util.ForegroundAppResolver
 
 /**
@@ -181,7 +183,7 @@ class ReceiptProcessor(
         ocrEngine = null
     }
 
-    private fun resolveParser(engine: org.caojun.shotocr.llm.LlmEngineApi): LlmReceiptParser {
+    private fun resolveParser(engine: LlmEngineApi): LlmReceiptParser {
         val provider = promptProvider ?: SystemPromptProvider(
             LlmStores.promptStore(appContext),
             LlmStores.customPlatformStore(appContext),
@@ -205,8 +207,8 @@ class ReceiptProcessor(
     }
 
     private fun llmErrorMessage(e: Exception): String =
-        if (e is LlmModelMissingException) {
-            appContext.getString(R.string.error_model_missing, e.assetName.substringAfterLast('/'))
+        if (e is LlmException && e.code == LlmApi.ERROR_NOT_READY) {
+            "本地大模型服务未就绪，请确认已安装并打开「本地大模型服务」App"
         } else {
             e.message ?: e.javaClass.simpleName
         }

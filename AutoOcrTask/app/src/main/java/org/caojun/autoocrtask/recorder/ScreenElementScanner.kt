@@ -6,7 +6,7 @@ import org.caojun.autoocrtask.automation.UiBounds
 import org.caojun.autoocrtask.automation.UiNode
 import org.caojun.autoocrtask.automation.UiTreeParser
 import org.caojun.shizuku.automation.ShizukuUiAutomationSession
-import org.caojun.shotocr.ocr.OcrEngine
+import org.caojun.ai.ocr.api.OcrEngine
 
 data class ScreenElement(
     val text: String,

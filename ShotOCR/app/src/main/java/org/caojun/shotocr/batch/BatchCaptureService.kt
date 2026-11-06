@@ -38,7 +38,7 @@ import org.caojun.shotocr.capture.applyCaptureMode
 import org.caojun.shotocr.classification.classifier.CategoryClassifier
 import org.caojun.shotocr.classification.repository.CategoryRuleRepository
 import org.caojun.shotocr.llm.ReceiptData
-import org.caojun.shotocr.ocr.OcrEngine
+import org.caojun.ai.ocr.api.OcrEngine
 import org.caojun.shotocr.processing.ProcessStep
 import org.caojun.shotocr.processing.ReceiptProcessor
 import org.caojun.shotocr.util.ForegroundAppResolver

@@ -1,6 +1,7 @@
 package org.caojun.shotocr.llm
 
 import kotlinx.coroutines.runBlocking
+import org.caojun.ai.llm.api.LlmEngineApi
 
 /**
  * 用本地大模型把 OCR 文本解析为 [ReceiptData]。

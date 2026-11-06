@@ -32,7 +32,6 @@ listOf(
     "shizuku",
     "shizuku-automation",
     "shizuku-return",
-    "ocr-engine",
     "prefs",
     "expandable-card",
     "floating-button",
@@ -41,3 +40,6 @@ listOf(
     include(":$name")
     project(":$name").projectDir = file("../ShotOCR/$name")
 }
+
+include(":ocr-api")
+project(":ocr-api").projectDir = file("../OnDeviceOcr/api")

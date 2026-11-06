@@ -184,5 +184,8 @@ echo Examples:
 echo   install WalletLoginDemo
 echo   install ShotOCR
 echo   install ShotOCR release clean
+echo   install OnDeviceOcr
+echo   install OnDeviceTranslate
+echo   install OnDeviceLlm
 echo.
 exit /b 0

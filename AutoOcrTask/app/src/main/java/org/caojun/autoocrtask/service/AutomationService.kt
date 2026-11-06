@@ -29,7 +29,7 @@ import org.caojun.autoocrtask.data.AutomationTaskStore
 import org.caojun.autoocrtask.ui.MainActivity
 import org.caojun.shizuku.RikkaShizukuGateway
 import org.caojun.shizuku.automation.ShizukuUiAutomation
-import org.caojun.shotocr.ocr.OcrEngine
+import org.caojun.ai.ocr.api.OcrEngine
 
 class AutomationService : LifecycleService() {
 

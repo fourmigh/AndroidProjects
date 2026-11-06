@@ -41,7 +41,7 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.kotlinx.coroutines.android)
 
-    api(project(":translate-engine"))
+    api(project(":translate-api"))
 
     debugImplementation(libs.compose.tooling)
 }

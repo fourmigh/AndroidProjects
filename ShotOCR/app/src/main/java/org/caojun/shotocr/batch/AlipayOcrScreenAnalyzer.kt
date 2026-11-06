@@ -2,7 +2,7 @@ package org.caojun.shotocr.batch
 
 import android.graphics.Bitmap
 import kotlin.math.roundToInt
-import org.caojun.shotocr.ocr.OcrEngine
+import org.caojun.ai.ocr.api.OcrEngine
 
 /** 把 OcrEngine 的结果转换为支付宝批量导航使用的纯坐标模型。 */
 class AlipayOcrScreenAnalyzer(private val ocr: OcrEngine) {

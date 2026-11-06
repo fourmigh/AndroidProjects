@@ -2,7 +2,7 @@ package org.caojun.autoocrtask.automation
 
 import kotlin.math.roundToInt
 import org.caojun.shizuku.automation.ShizukuUiAutomationSession
-import org.caojun.shotocr.ocr.OcrEngine
+import org.caojun.ai.ocr.api.OcrEngine
 
 data class UiPoint(val x: Int, val y: Int)
 

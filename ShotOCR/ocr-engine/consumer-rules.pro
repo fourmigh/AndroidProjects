@@ -1,2 +1,0 @@
--keep class org.caojun.shotocr.ocr.** { *; }
--keep class org.caojun.shotocr.parser.** { *; }

@@ -49,7 +49,7 @@ import org.caojun.autoocrtask.data.StepType
 import org.caojun.autoocrtask.ui.MainActivity
 import org.caojun.shizuku.automation.ShizukuUiAutomation
 import org.caojun.shizuku.automation.ShizukuUiAutomationSession
-import org.caojun.shotocr.ocr.OcrEngine
+import org.caojun.ai.ocr.api.OcrEngine
 
 private enum class SwipeDirection { UP, DOWN, LEFT, RIGHT }
 
