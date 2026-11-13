@@ -141,6 +141,8 @@ class QuestionBuilder(
     private fun buildLevel4(ch: String): Question? {
         val names = index.getStrokeNames(ch).filter { it.isNotEmpty() }
         if (names.size < 2) return null
+        // 笔名数量与笔画数不一致时无法保证题号对应，跳过该级。
+        if (names.size != index.getStrokeCount(ch)) return null
         val idx = rng.nextInt(names.size)
         val correct = names[idx]
         val picks = distractors.pickStrokeNames(correct, 3)

@@ -22,7 +22,7 @@ cnchar.use(requireMini("cnchar-radical"));
 cnchar.use(requireMini("cnchar-words"));
 
 const clean = (v) => String(v == null ? "" : v).replace(/[\t\r\n]/g, " ").trim();
-const cleanList = (list) => {
+const cleanList = (list, dedupe = true) => {
     const arr = Array.isArray(list) ? list : [list];
     const seen = new Set();
     const out = [];
@@ -33,7 +33,7 @@ const cleanList = (list) => {
             .replace(/[\t\r\n,，;；]/g, "")
             .trim();
         if (!s || s === "null" || s === "undefined" || s === "[object Object]") continue;
-        if (seen.has(s)) continue;
+        if (dedupe && seen.has(s)) continue;
         seen.add(s);
         out.push(s);
     }
@@ -101,12 +101,12 @@ tierChars.forEach((list, tier) => list.forEach((ch) => tierOf.set(ch, tier)));
 
 function strokeNames(ch) {
     const extra = extraStrokeMap[ch];
-    if (extra && extra.length) return cleanList(extra);
+    if (extra && extra.length) return cleanList(extra, false);
     try {
         const arr = cnchar.stroke(ch, "order", "name");
         if (!arr || !arr.length) return [];
         const first = arr[0];
-        return cleanList(Array.isArray(first) ? first : [first]);
+        return cleanList(Array.isArray(first) ? first : [first], false);
     } catch (e) {
         return [];
     }

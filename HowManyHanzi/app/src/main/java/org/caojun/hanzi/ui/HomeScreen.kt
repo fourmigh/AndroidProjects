@@ -1,7 +1,9 @@
 package org.caojun.hanzi.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,10 +20,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -31,7 +33,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
@@ -57,6 +66,10 @@ fun HomeScreen(vm: AppViewModel) {
     var polyOnly by remember { mutableStateOf(false) }
     var showRareDialog by remember { mutableStateOf(false) }
     var rareChar by remember { mutableStateOf("") }
+    var inputFocused by remember { mutableStateOf(false) }
+    val inputFocus = remember { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
+    val focusManager = LocalFocusManager.current
 
     val progress = remember(vm.screen) {
         Progress.calcProgress(vm.store.getCharLevels(), index.allChars.size)
@@ -71,6 +84,7 @@ fun HomeScreen(vm: AppViewModel) {
             return
         }
         input = list.random()
+        focusManager.clearFocus()
     }
 
     fun startSingle() {
@@ -154,30 +168,55 @@ fun HomeScreen(vm: AppViewModel) {
                 )
                 Spacer(Modifier.height(14.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedTextField(
-                        value = input,
-                        onValueChange = { raw ->
-                            val cps = raw.codePoints().toArray()
-                            val last = cps.lastOrNull()?.let { String(Character.toChars(it)) }
-                            input = if (last != null && isHanChar(last)) last else ""
-                        },
-                        modifier = Modifier.width(78.dp),
-                        singleLine = true,
-                        textStyle = androidx.compose.ui.text.TextStyle(
-                            fontSize = 30.sp,
-                            textAlign = TextAlign.Center,
-                            color = Ink,
-                        ),
-                        placeholder = { Text("字", fontSize = 20.sp, color = Muted) },
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Ink,
-                            unfocusedBorderColor = Border,
-                            focusedContainerColor = Color.White,
-                            unfocusedContainerColor = Color.White,
-                        ),
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(78.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color.White)
+                            .border(
+                                1.dp,
+                                if (inputFocused) Ink else Border,
+                                RoundedCornerShape(12.dp),
+                            )
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                            ) { inputFocus.requestFocus() },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        BasicTextField(
+                            value = input,
+                            onValueChange = { raw ->
+                                val cps = raw.codePoints().toArray()
+                                val last = cps.lastOrNull()?.let { String(Character.toChars(it)) }
+                                input = if (last != null && isHanChar(last)) last else ""
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .focusRequester(inputFocus)
+                                .onFocusChanged { inputFocused = it.isFocused },
+                            textStyle = TextStyle(
+                                fontSize = 30.sp,
+                                textAlign = TextAlign.Center,
+                                color = Ink,
+                            ),
+                            singleLine = true,
+                            cursorBrush = SolidColor(Accent),
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                            keyboardActions = KeyboardActions(onDone = { keyboard?.hide() }),
+                            decorationBox = { inner ->
+                                Box(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    if (input.isEmpty() && !inputFocused) {
+                                        Text("字", fontSize = 20.sp, color = Muted)
+                                    }
+                                    inner()
+                                }
+                            },
+                        )
+                    }
                     Spacer(Modifier.width(10.dp))
                     GhostButton(
                         text = "随机",

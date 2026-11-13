@@ -143,6 +143,41 @@ class EngineTest {
     }
 
     @Test
+    fun `stroke names keep repeated strokes and match stroke count`() {
+        assertEquals(
+            listOf("撇点", "撇", "横", "撇", "横", "竖", "横"),
+            index.getStrokeNames("妊"),
+        )
+        assertEquals(7, index.getStrokeNames("妊").size)
+        assertEquals(24, index.getStrokeNames("鑫").size)
+        assertEquals(6, index.getStrokeNames("行").size)
+        assertEquals(1, index.getStrokeNames("一").size)
+
+        var mismatched = 0
+        for (ch in index.allChars) {
+            val names = index.getStrokeNames(ch)
+            val count = index.getStrokeCount(ch)
+            if (names.isNotEmpty() && count > 0 && names.size != count) mismatched++
+        }
+        assertEquals(0, mismatched)
+    }
+
+    @Test
+    fun `level 4 answer matches the asked stroke index`() {
+        val builder = org.caojun.hanzi.engine.QuestionBuilder(index, Random(9))
+        val pool = index.getCharsByScope(4)
+        for (ch in listOf("妊", "鑫", "行", "一", "的", "大")) {
+            val names = index.getStrokeNames(ch)
+            repeat(20) {
+                val q = builder.buildQuestion(ch, 4, pool) ?: return@repeat
+                val n = Regex("第 (\\d+) 笔").find(q.prompt)?.groupValues?.get(1)?.toInt() ?: 0
+                assertTrue("$ch 题号解析失败", n in 1..names.size)
+                assertEquals("$ch 第 $n 笔", names[n - 1], q.answer[0])
+            }
+        }
+    }
+
+    @Test
     fun `level helpers`() {
         assertEquals("甲", Levels.markOf(6))
         assertEquals("庚", Levels.markOf(0))

@@ -97,18 +97,26 @@ private fun StrokeCell(
             val boxOffset = 512f * gs
             val bx = size.width / 2f
             val by = size.height / 2f
-            parsed.forEachIndexed { j, cmds ->
-                val path = buildPath(cmds)
-                val color = when {
-                    j < index -> COLOR_DONE
-                    j == index -> COLOR_CURRENT
-                    else -> COLOR_PENDING
+            val paths = parsed.map { buildPath(it) }
+            // 未写笔画放最底层，已完成居中，当前笔最上层，避免未写笔画压住已写笔画。
+            val order = parsed.indices.sortedBy { j ->
+                when {
+                    j > index -> 0
+                    j < index -> 1
+                    else -> 2
                 }
-                withTransform({
-                    translate(bx - boxOffset, by - boxOffset + 900f * gs)
-                    scale(gs, -gs, pivot = Offset.Zero)
-                }) {
-                    drawPath(path, color)
+            }
+            withTransform({
+                translate(bx - boxOffset, by - boxOffset + 900f * gs)
+                scale(gs, -gs, pivot = Offset.Zero)
+            }) {
+                for (j in order) {
+                    val color = when {
+                        j < index -> COLOR_DONE
+                        j == index -> COLOR_CURRENT
+                        else -> COLOR_PENDING
+                    }
+                    drawPath(paths[j], color)
                 }
             }
         }
