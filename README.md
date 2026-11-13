@@ -35,6 +35,7 @@ OnDeviceOcr / OnDeviceTranslate / OnDeviceLlm（provider，模型与推理，独
 | `ShotOCR/` | client | 截图记账主 App（多模块：app、accounting、classification、database、llm-parser、shizuku 等，APK 20 MB） |
 | `AutoOcrTask/` | client | 自动化任务（app 单模块，APK 12 MB） |
 | `WalletLoginDemo/` | 独立 Demo | Google Wallet 动态二维码 / NFC HCE 碰一碰替代登录，含 Node 后端；详见其 [README.md](WalletLoginDemo/README.md) |
+| `HowManyHanzi/` | 独立 App | 汉字识字量自测（Kotlin + Compose，完全离线；内置 8105 字资料与 6866 字笔顺字模）；详见其 [README.md](HowManyHanzi/README.md) |
 | `keystore/` | 签名资产 | `shared.p12` + `keystore.properties`，五个 App 共用同一证书（便于 debug / release 互相覆盖升级）；已 gitignore，不要提交 |
 | `install.bat` | 脚本 | 对工作区里的工程执行 gradle 安装到设备，支持 `release` / `clean` 参数 |
 | `download-models.bat` | 脚本 | `download-models <工程名>`：按工程内 `.url` 文件下载模型到对应位置，已存在则跳过，支持断点续传；`HF_MIRROR` 可指定 HuggingFace 镜像 |
@@ -95,9 +96,13 @@ OnDeviceXxx/
   不要把模型文件提交到 git，也不要在代码里写死模型缓存路径之外的模型期望。
 - **各工程独立构建**：跨工程改动时，每个工程的 `gradle/libs.versions.toml` 是独立的，
   依赖与版本号不会自动同步，需要单独检查。
+- **离线数据是生成物**：`HowManyHanzi` 的 `app/src/main/assets/strokes/`、`assets/data/`
+  由 `tools/` 下的 Node 脚本从小程序源码和 `hanzi-writer-data` 生成，不进 git；
+  改字库或笔顺逻辑时重跑脚本，不要手改生成文件。
 - **APK 只带 arm64-v8a**：x86 模拟器上无法运行这些 App。
 
 ## 相关文档
 
 - [ON_DEVICE_AI.md](ON_DEVICE_AI.md) — 拆分架构详细说明（签名、权限、API 契约、运行时行为、构建与测试）
 - [WalletLoginDemo/README.md](WalletLoginDemo/README.md) — Wallet / NFC 登录 Demo 的架构与运行方式
+- [HowManyHanzi/README.md](HowManyHanzi/README.md) — 汉字识字量自测 App 的功能、离线数据管线与构建方式
