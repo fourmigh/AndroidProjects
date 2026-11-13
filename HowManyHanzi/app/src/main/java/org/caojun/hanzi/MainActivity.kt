@@ -36,9 +36,11 @@ import org.caojun.hanzi.ui.CharsScreen
 import org.caojun.hanzi.ui.HistoryScreen
 import org.caojun.hanzi.ui.HomeScreen
 import org.caojun.hanzi.ui.IntroScreen
+import org.caojun.hanzi.ui.LetterScreen
 import org.caojun.hanzi.ui.QuizScreen
 import org.caojun.hanzi.ui.ResultScreen
 import org.caojun.hanzi.ui.Screen
+import org.caojun.hanzi.ui.StrokePlayScreen
 import org.caojun.hanzi.ui.theme.Accent
 import org.caojun.hanzi.ui.theme.HanziTheme
 import org.caojun.hanzi.ui.theme.Ink
@@ -103,6 +105,8 @@ private fun AppRoot(vm: AppViewModel) {
         Screen.Chars -> CharsScreen(vm)
         is Screen.CharsList -> CharsListScreen(vm, screen)
         is Screen.CharDetail -> CharDetailScreen(vm, screen)
+        is Screen.StrokePlay -> StrokePlayScreen(vm, screen)
+        Screen.Letter -> LetterScreen(vm)
         Screen.Intro -> IntroScreen(vm)
     }
 }

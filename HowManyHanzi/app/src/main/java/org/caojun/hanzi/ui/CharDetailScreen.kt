@@ -122,7 +122,18 @@ fun CharDetailScreen(vm: AppViewModel, route: Screen.CharDetail) {
                 modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Text(current, fontSize = 84.sp, color = Ink, fontWeight = FontWeight.Medium)
+                Text(
+                    current,
+                    fontSize = 84.sp,
+                    color = Ink,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(16.dp))
+                        .clickable(enabled = current == "写" || current == "信") {
+                            vm.go(Screen.Letter)
+                        }
+                        .padding(horizontal = 10.dp, vertical = 2.dp),
+                )
                 Spacer(Modifier.height(6.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (level != null) {
@@ -168,7 +179,13 @@ fun CharDetailScreen(vm: AppViewModel, route: Screen.CharDetail) {
                     0 -> Text("笔顺数据加载中…", fontSize = 12.sp, color = Muted)
                     2 -> Text("该字暂无笔顺数据", fontSize = 12.sp, color = Muted)
                     else -> {
-                        StrokeGrid(strokes = strokeData, names = strokeNames)
+                        StrokeGrid(
+                            strokes = strokeData,
+                            names = strokeNames,
+                            onCellClick = { strokeIndex ->
+                                vm.go(Screen.StrokePlay(current, strokeIndex))
+                            },
+                        )
                         Spacer(Modifier.height(10.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             LegendItem("已完成", Color(0xFF22333B))

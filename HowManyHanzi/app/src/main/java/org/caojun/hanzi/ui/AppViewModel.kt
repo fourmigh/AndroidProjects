@@ -30,6 +30,8 @@ sealed interface Screen {
     data object Chars : Screen
     data class CharsList(val scope: Int) : Screen
     data class CharDetail(val char: String, val scope: Int, val index: Int) : Screen
+    data class StrokePlay(val char: String, val start: Int = 0) : Screen
+    data object Letter : Screen
     data object Intro : Screen
 }
 

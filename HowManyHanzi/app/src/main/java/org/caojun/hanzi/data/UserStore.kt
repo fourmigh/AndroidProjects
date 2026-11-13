@@ -40,6 +40,26 @@ class UserStore(context: Context) {
         get() = prefs.getInt("sampleSize", 20)
         set(value) = prefs.edit().putInt("sampleSize", value).apply()
 
+    var strokeDuration: Int
+        get() = prefs.getInt("strokeDuration", 2000)
+        set(value) = prefs.edit().putInt("strokeDuration", value).apply()
+
+    var strokePause: Boolean
+        get() = prefs.getBoolean("strokePause", true)
+        set(value) = prefs.edit().putBoolean("strokePause", value).apply()
+
+    var letterDuration: Int
+        get() = prefs.getInt("letterDuration", 800)
+        set(value) = prefs.edit().putInt("letterDuration", value).apply()
+
+    var letterSize: Int
+        get() = prefs.getInt("letterSize", 95)
+        set(value) = prefs.edit().putInt("letterSize", value).apply()
+
+    var letterGap: Int
+        get() = prefs.getInt("letterGap", 8)
+        set(value) = prefs.edit().putInt("letterGap", value).apply()
+
     fun getCharLevels(): Map<String, Int> {
         val raw = prefs.getString("charLevels", null) ?: return emptyMap()
         return try {

@@ -1,5 +1,6 @@
 // 下载 hanzi-writer-data 并只把 8105 字表中命中的字模写入 Android assets。
-// 输出：app/src/main/assets/strokes/<字>.json（格式 {"s":["M ...", ...]}）
+// 输出：app/src/main/assets/strokes/<码点>.json（格式 {"s":["M ...", ...],"m":[[[x,y],...],...]}）
+// s 是笔画轮廓，m 是笔画中心线（逐笔动画沿中心线书写）。
 // 用法：node tools/fetch-strokes.mjs
 import fs from "node:fs";
 import path from "node:path";
@@ -58,7 +59,7 @@ for (let i = 0; i < chars.length; i++) {
         missing.push(ch);
         continue;
     }
-    const slim = JSON.stringify({ s: raw.strokes });
+    const slim = JSON.stringify({ s: raw.strokes, m: raw.medians || [] });
     fs.writeFileSync(path.join(OUT, `${ch.codePointAt(0).toString(16)}.json`), slim, "utf8");
     bytes += Buffer.byteLength(slim);
     hit++;
