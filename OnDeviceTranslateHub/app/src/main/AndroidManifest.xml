@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <permission
+        android:name="org.caojun.ai.translate.hub.permission.USE_SERVICE"
+        android:protectionLevel="normal" />
+
+    <!-- 仅用于下载模型；翻译本身完全离线 -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <application
+        android:name=".HubApp"
+        android:allowBackup="false"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:largeHeap="true"
+        android:theme="@android:style/Theme.Material.Light.NoActionBar">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- 客户端可通过 deep link 跳到某个模型 -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="caojunhub" android:host="model" />
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name=".HubTranslateService"
+            android:exported="true"
+            android:permission="org.caojun.ai.translate.hub.permission.USE_SERVICE">
+            <intent-filter>
+                <action android:name="org.caojun.ai.translate.provider.TRANSLATE" />
+            </intent-filter>
+        </service>
+    </application>
+
+</manifest>

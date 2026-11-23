@@ -10,6 +10,7 @@ ShotOCR 里的 OCR、翻译、LLM 三块能力已拆成三个独立 App，各自
 |---|---|---|---|---|
 | `OnDeviceOcr` | provider | `org.caojun.ai.ocr` | 图片 → 文本行 + 像素坐标 | 62.3 MB |
 | `OnDeviceTranslate` | provider | `org.caojun.ai.translate` | 文本 → 文本（中英双向） | 526.2 MB |
+| `OnDeviceTranslateHub` | provider | `org.caojun.ai.translate.hub` | 多语种翻译，模型按需下载（GGUF） | 19.4 MB |
 | `OnDeviceLlm` | provider | `org.caojun.ai.llm` | system + user → 文本 | 353.0 MB |
 | `ShotOCR` | client | `org.caojun.shotocr` | 截图记账主 App | 19.8 MB |
 | `AutoOcrTask` | client | `org.caojun.autoocrtask` | 自动化任务 | 11.5 MB |
@@ -93,9 +94,28 @@ install AutoOcrTask
 ## 运行时行为
 
 - provider 的模型在进程内单例；最后一次解绑后空闲 5 分钟自动释放
+  （`OnDeviceTranslateHub` 为 15 分钟，因为 1.8B 模型重载要 2–5 秒）
 - OCR / 翻译客户端每次调用 bind → 调用 → unbind
 - LLM 客户端保持连接直到 `close()`，推理请求在 provider 内串行排队
 - 客户端超时：OCR 30 秒、翻译 60 秒、LLM 180 秒
+
+## 两个翻译 provider 如何选择
+
+`OnDeviceTranslateHub` 用新的契约（`org.caojun.ai.translate.provider.ITranslateProvider`），
+能力（语种）由**已下载的模型**动态决定；`OnDeviceTranslate` 仍用旧契约，固定中英。
+
+客户端（`ShotOCR/translate-ui`）的路由规则：
+
+```
+中英（zh-Hans / en）→ 内置 Marian（几十毫秒）；不可用时才走 Hub
+其他语种（zh-Hant / yue / bo / ug / mn / kk …）→ Hub
+```
+
+provider 通过统一 action 发现，客户端不需要写死包名：
+
+```xml
+<action android:name="org.caojun.ai.translate.provider.TRANSLATE" />
+```
 
 ## 构建与测试
 
@@ -104,6 +124,7 @@ install AutoOcrTask
 ```powershell
 cd OnDeviceOcr;       .\gradlew.bat assembleDebug
 cd OnDeviceTranslate; .\gradlew.bat assembleDebug
+cd OnDeviceTranslateHub; .\gradlew.bat :app:assembleRelease   # 需先跑 tools\fetch-llama.ps1
 cd OnDeviceLlm;       .\gradlew.bat assembleDebug
 cd ShotOCR;           .\gradlew.bat :app:assembleDebug
 cd AutoOcrTask;       .\gradlew.bat :app:assembleDebug

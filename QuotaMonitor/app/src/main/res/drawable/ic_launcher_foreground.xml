@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- 仪表盘外圈弧线 -->
+    <path
+        android:pathData="M30,68 A24,24 0 1 1 78,68"
+        android:strokeColor="#F5F6F8"
+        android:strokeWidth="6"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+    <!-- 刻度 -->
+    <path
+        android:pathData="M34,52 L38,55 M54,42 L54,47 M74,52 L70,55"
+        android:strokeColor="#8FA3B0"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+    <!-- 指针 -->
+    <path
+        android:pathData="M54,68 L69,51"
+        android:strokeColor="#F2A65A"
+        android:strokeWidth="6"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+    <!-- 中心点 -->
+    <path
+        android:pathData="M54,64 a4,4 0 1,0 0.01,0"
+        android:fillColor="#F5F6F8" />
+    <!-- 底座 -->
+    <path
+        android:pathData="M36,76 L72,76"
+        android:strokeColor="#8FA3B0"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+</vector>

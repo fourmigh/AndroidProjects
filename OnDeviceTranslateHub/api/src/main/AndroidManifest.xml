@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- provider 声明的权限；客户端声明后即可绑定 -->
+    <uses-permission android:name="org.caojun.ai.translate.hub.permission.USE_SERVICE" />
+
+    <!-- Android 11+ 包可见性：按 action 枚举所有翻译 provider -->
+    <queries>
+        <intent>
+            <action android:name="org.caojun.ai.translate.provider.TRANSLATE" />
+        </intent>
+    </queries>
+
+</manifest>

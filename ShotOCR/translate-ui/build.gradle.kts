@@ -42,6 +42,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
 
     api(project(":translate-api"))
+    api(project(":translate-provider-api"))
 
     debugImplementation(libs.compose.tooling)
 }

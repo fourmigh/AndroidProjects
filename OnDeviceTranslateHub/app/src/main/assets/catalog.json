@@ -1,0 +1,175 @@
+{
+  "catalogVersion": 1,
+  "generatedAt": "2026-11-17",
+  "models": [
+    {
+      "id": "plamo3-translate-0.8b-q4km",
+      "name": "PLaMo 3 Translate 0.8B",
+      "vendor": "Preferred Networks",
+      "params": "0.89B",
+      "summary": "53 语种，日语强，中端机首选",
+      "langs": [
+        "ar", "az", "be", "bg", "bn", "ca", "ceb", "de", "en", "es",
+        "et", "eu", "fa", "fr", "gu", "he", "hi", "hr", "hu", "hy",
+        "id", "it", "ja", "jv", "ka", "kk", "km", "ko", "lt", "lv",
+        "ml", "mr", "ms", "my", "ne", "nl", "pa", "pl", "ru", "si",
+        "sk", "sl", "sr", "sw", "ta", "te", "th", "fil", "ur", "uz",
+        "vi", "zh-Hans"
+      ],
+      "dialects": ["kk"],
+      "textOnlyLangs": [
+        "ar", "az", "be", "bg", "bn", "ca", "ceb", "de", "es", "et",
+        "eu", "fa", "fr", "gu", "he", "hi", "hr", "hu", "hy", "id",
+        "it", "ja", "jv", "ka", "kk", "km", "ko", "lt", "lv", "ml",
+        "mr", "ms", "my", "ne", "nl", "pa", "pl", "ru", "si", "sk",
+        "sl", "sr", "sw", "ta", "te", "th", "fil", "ur", "uz", "vi"
+      ],
+      "sizeBytes": 573126848,
+      "minRamMb": 2048,
+      "quality": 78,
+      "speedClass": "fast",
+      "longText": true,
+      "maxInputChars": 6000,
+      "recommended": true,
+
+      "license": {
+        "name": "PLaMo Community License",
+        "summary": "个人/学术免费；商用需登记，年营收 ≤ 10 亿日元免费",
+        "requiresAccept": true,
+        "url": "https://huggingface.co/pfnet/plamo-3-translate-0.8b-GGUF"
+      },
+
+      "files": [
+        {
+          "name": "model.gguf",
+          "sizeBytes": 573126848,
+          "sha256": "",
+          "urls": [
+            "https://hf-mirror.com/pfnet/plamo-3-translate-0.8b-GGUF/resolve/main/plamo-3-translate-0.8b-Q4_K_M.gguf",
+            "https://huggingface.co/pfnet/plamo-3-translate-0.8b-GGUF/resolve/main/plamo-3-translate-0.8b-Q4_K_M.gguf"
+          ]
+        }
+      ],
+
+      "prompt": { "style": "plamo3" },
+      "sampling": { "temp": 0.0, "topK": 1, "topP": 1.0, "repPenalty": 1.0 },
+      "postprocess": ["stripQuotes"],
+      "stopTokens": ["<|plamo:msg|>", "<|plamo:tag|>", "<|plamo:key|>", "<|plamo:val|>"],
+
+      "engineReq": { "llamaArch": ["plamo3", "plamo2", "plamo"], "minEngine": 1 },
+      "langsSource": "https://hf-mirror.com/api/models/pfnet/plamo-3-translate-0.8b-GGUF",
+      "verifiedAt": "2026-11-17",
+      "available": true
+    },
+    {
+      "id": "hymt2-1.8b-q4km",
+      "name": "混元翻译 Hy-MT2-1.8B",
+      "vendor": "腾讯混元",
+      "params": "1.8B",
+      "summary": "38 语种（含粤语/民汉），中英质量线",
+      "langs": [
+        "zh-Hans", "zh-Hant", "yue", "bo", "ug", "mn", "kk",
+        "en", "fr", "pt", "es", "ja", "tr", "ru", "ar", "ko",
+        "th", "it", "de", "vi", "ms", "id", "fil", "hi", "pl",
+        "cs", "nl", "km", "my", "fa", "gu", "ur", "te", "mr",
+        "he", "bn", "ta", "uk"
+      ],
+      "dialects": ["yue", "bo", "ug", "mn", "kk"],
+      "textOnlyLangs": [
+        "yue", "bo", "ug", "mn", "kk", "fr", "pt", "es", "ja", "tr",
+        "ru", "ar", "ko", "th", "it", "de", "vi", "ms", "id", "fil",
+        "hi", "pl", "cs", "nl", "km", "my", "fa", "gu", "ur", "te",
+        "mr", "he", "bn", "ta", "uk"
+      ],
+      "sizeBytes": 1133080448,
+      "minRamMb": 3072,
+      "quality": 92,
+      "speedClass": "slow",
+      "longText": true,
+      "maxInputChars": 6000,
+      "recommended": false,
+
+      "license": {
+        "name": "Apache-2.0（以模型卡为准）",
+        "summary": "腾讯混元 Hy-MT2 系列，仓库未 gated",
+        "requiresAccept": false,
+        "url": "https://huggingface.co/tencent/Hy-MT2-1.8B"
+      },
+
+      "files": [
+        {
+          "name": "model.gguf",
+          "sizeBytes": 1133080448,
+          "sha256": "",
+          "urls": [
+            "https://hf-mirror.com/tencent/Hy-MT2-1.8B-GGUF/resolve/main/Hy-MT2-1.8B-Q4_K_M.gguf",
+            "https://huggingface.co/tencent/Hy-MT2-1.8B-GGUF/resolve/main/Hy-MT2-1.8B-Q4_K_M.gguf"
+          ]
+        }
+      ],
+
+      "prompt": { "style": "hymt" },
+      "sampling": { "temp": 0.7, "topK": 20, "topP": 0.6, "repPenalty": 1.05 },
+      "postprocess": ["stripPrefix", "stripQuotes"],
+      "stopTokens": [],
+
+      "engineReq": { "llamaArch": ["hunyuan-dense", "hunyuan", "llama"], "minEngine": 1 },
+      "langsSource": "https://huggingface.co/tencent/Hy-MT2-1.8B#supported-languages",
+      "verifiedAt": "2026-11-17",
+      "available": true
+    },
+    {
+      "id": "index-translate-2b-q2k",
+      "name": "Index-Translate 2B",
+      "vendor": "bilibili",
+      "params": "1.9B",
+      "summary": "多语种广覆盖，含术语/格式约束",
+      "langs": [
+        "en", "zh-Hans", "de", "fr", "es", "ja", "ko", "pt", "ru",
+        "ar", "it", "nl", "pl", "ro", "sv", "tr", "hi", "vi", "th",
+        "id", "ms", "fil"
+      ],
+      "dialects": [],
+      "textOnlyLangs": [
+        "de", "fr", "es", "ja", "ko", "pt", "ru", "ar", "it", "nl",
+        "pl", "ro", "sv", "tr", "hi", "vi", "th", "id", "ms", "fil"
+      ],
+      "sizeBytes": 990491136,
+      "minRamMb": 3072,
+      "quality": 84,
+      "speedClass": "medium",
+      "longText": true,
+      "maxInputChars": 12000,
+      "recommended": false,
+
+      "license": {
+        "name": "待核实",
+        "summary": "bilibili Index-Translate，下载前请确认模型卡许可",
+        "requiresAccept": false,
+        "url": "https://huggingface.co/IndexTeam/Index-Translate-2B"
+      },
+
+      "files": [
+        {
+          "name": "model.gguf",
+          "sizeBytes": 990491136,
+          "sha256": "",
+          "urls": [
+            "https://hf-mirror.com/IndexTeam/Index-Translate-2B-GGUF/resolve/main/Index-Translate-2B.Q2_K.gguf",
+            "https://huggingface.co/IndexTeam/Index-Translate-2B-GGUF/resolve/main/Index-Translate-2B.Q2_K.gguf"
+          ]
+        }
+      ],
+
+      "prompt": { "style": "index_zh" },
+      "sampling": { "temp": 0.0, "topK": 1, "topP": 1.0, "repPenalty": 1.0 },
+      "postprocess": ["stripFence", "stripQuotes"],
+      "stopTokens": [],
+
+      "engineReq": { "llamaArch": ["qwen35", "qwen3"], "minEngine": 1 },
+      "langsSource": "https://arxiv.org/html/2609.40181v2 (Table 32/33)",
+      "verifiedAt": "2026-11-17",
+      "available": true
+    }
+  ]
+}

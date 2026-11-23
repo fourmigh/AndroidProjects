@@ -1,0 +1,17 @@
+# llama.cpp 源码不纳入仓库（约 30 MB），用 tools/fetch-llama.ps1 获取
+third_party/llama.cpp/
+
+# 模型不纳入仓库
+engine-llama/src/main/assets/models/
+*.gguf
+
+# Gradle / IDE
+.gradle/
+.kotlin/
+build/
+local.properties
+.idea/
+*.iml
+captures/
+.externalNativeBuild/
+.cxx/

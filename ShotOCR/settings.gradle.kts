@@ -42,5 +42,9 @@ include(":ocr-api")
 project(":ocr-api").projectDir = file("../OnDeviceOcr/api")
 include(":translate-api")
 project(":translate-api").projectDir = file("../OnDeviceTranslate/api")
+
+// 多模型翻译 provider 的契约（OnDeviceTranslateHub 提供）
+include(":translate-provider-api")
+project(":translate-provider-api").projectDir = file("../OnDeviceTranslateHub/api")
 include(":llm-api")
 project(":llm-api").projectDir = file("../OnDeviceLlm/api")

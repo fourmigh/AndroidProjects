@@ -1,0 +1,41 @@
+cmake_minimum_required(VERSION 3.22.1)
+
+project(hubllama CXX)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+if(NOT DEFINED LLAMA_CPP_DIR)
+    message(FATAL_ERROR "LLAMA_CPP_DIR is not set. Run tools/fetch-llama.ps1 first.")
+endif()
+
+if(NOT EXISTS "${LLAMA_CPP_DIR}/CMakeLists.txt")
+    message(FATAL_ERROR "llama.cpp not found at ${LLAMA_CPP_DIR}. Run tools/fetch-llama.ps1 first.")
+endif()
+
+# 静态链接进单个 hubllama.so，避免 APK 里出现一堆 .so
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+
+set(LLAMA_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(LLAMA_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
+set(LLAMA_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(LLAMA_BUILD_SERVER OFF CACHE BOOL "" FORCE)
+set(LLAMA_BUILD_COMMON OFF CACHE BOOL "" FORCE)
+set(LLAMA_CURL OFF CACHE BOOL "" FORCE)
+set(LLAMA_OPENSSL OFF CACHE BOOL "" FORCE)
+set(LLAMA_ALL_WARNINGS OFF CACHE BOOL "" FORCE)
+set(LLAMA_FATAL_WARNINGS OFF CACHE BOOL "" FORCE)
+
+set(GGML_OPENMP OFF CACHE BOOL "" FORCE)
+set(GGML_NATIVE OFF CACHE BOOL "" FORCE)
+set(GGML_LLAMAFILE OFF CACHE BOOL "" FORCE)
+set(GGML_BACKEND_DL OFF CACHE BOOL "" FORCE)
+set(GGML_CPU ON CACHE BOOL "" FORCE)
+set(GGML_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(GGML_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+
+add_subdirectory(${LLAMA_CPP_DIR} ${CMAKE_BINARY_DIR}/llama-build)
+
+add_library(hubllama SHARED hub_jni.cpp)
+
+target_link_libraries(hubllama PRIVATE llama android log)
