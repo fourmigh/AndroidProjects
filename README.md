@@ -37,7 +37,7 @@ OnDeviceOcr / OnDeviceTranslate / OnDeviceLlm（provider，模型与推理，独
 | `AutoOcrTask/` | client | 自动化任务（app 单模块，APK 12 MB） |
 | `WalletLoginDemo/` | 独立 Demo | Google Wallet 动态二维码 / NFC HCE 碰一碰替代登录，含 Node 后端；详见其 [README.md](WalletLoginDemo/README.md) |
 | `HowManyHanzi/` | 独立 App | 汉字识字量自测（Kotlin + Compose，完全离线；内置 8105 字资料、6866 字笔顺字模，含写字动画与写信彩蛋）；详见其 [README.md](HowManyHanzi/README.md) |
-| `QuotaMonitor/` | 独立 App | 套餐限额监控（Kotlin + Compose；内置 WebView 复用登录态，双通道提取 OpenCode / 火山引擎 Coding Plan 额度，原生仪表盘展示）；详见其 [README.md](QuotaMonitor/README.md) |
+| `QuotaMonitor/` | 独立 App | 套餐限额监控（Kotlin + Compose；内置 WebView 复用登录态，精准提取 OpenCode / 火山方舟 Coding Plan 额度，原生仪表盘展示）；详见其 [README.md](QuotaMonitor/README.md) |
 | `keystore/` | 签名资产 | `shared.p12` + `keystore.properties`，五个 App 共用同一证书（便于 debug / release 互相覆盖升级）；已 gitignore，不要提交 |
 | `install.bat` | 脚本 | 对工作区里的工程执行 gradle 安装到设备，支持 `release` / `clean` 参数 |
 | `download-models.bat` | 脚本 | `download-models <工程名>`：按工程内 `.url` 文件下载模型到对应位置，已存在则跳过，支持断点续传；`HF_MIRROR` 可指定 HuggingFace 镜像 |

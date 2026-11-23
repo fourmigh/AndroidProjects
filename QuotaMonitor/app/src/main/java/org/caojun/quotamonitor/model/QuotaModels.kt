@@ -1,22 +1,26 @@
 package org.caojun.quotamonitor.model
 
+import androidx.annotation.StringRes
+import org.caojun.quotamonitor.R
+
 /**
  * 支持的控制台平台。
+ * 展示名称与登录提示走字符串资源，避免在代码里硬编码文案。
  */
 enum class Platform(
-    val title: String,
+    @StringRes val titleRes: Int,
     val url: String,
-    val loginHint: String,
+    @StringRes val loginHintRes: Int,
 ) {
     OPENCODE(
-        title = "OpenCode Console",
+        titleRes = R.string.platform_opencode_title,
         url = "https://opencode.ai/console",
-        loginHint = "在页面中完成登录后返回仪表盘",
+        loginHintRes = R.string.login_hint_default,
     ),
     VOLC(
-        title = "火山引擎 Coding Plan",
+        titleRes = R.string.platform_volc_title,
         url = "https://console.volcengine.com/ark/region:cn-beijing/subscription/coding-plan",
-        loginHint = "在页面中完成登录后返回仪表盘",
+        loginHintRes = R.string.login_hint_default,
     ),
 }
 
@@ -49,6 +53,12 @@ data class QuotaItem(
     val percent: Double? = null,
     /** 该项专属的重置倒计时（如 "Resets in 2h 15m"、"48分后重置"） */
     val resetHint: String? = null,
+    /**
+     * 网页上的原始百分比文本（如 "29"、"13.51"、"100"）。
+     * 展示时优先使用它，小数位数与网页完全一致、不写死；
+     * [percent] 仅用于计算进度条长度。
+     */
+    val percentText: String? = null,
 ) {
     /** 0..1 的进度，用于进度条 */
     val fraction: Float?
@@ -67,8 +77,10 @@ data class QuotaSnapshot(
     val items: List<QuotaItem> = emptyList(),
     /** 页面上的关键文本行（结构化解析失败时的兜底展示） */
     val lines: List<String> = emptyList(),
-    /** 套餐级汇总信息（如 "剩余 28天 · 结束于 2026-12-20 23:59"） */
-    val resetAt: String? = null,
+    /** 套餐剩余时间原文（如 "28天"），由界面套用本地化模板展示 */
+    val remainText: String? = null,
+    /** 套餐结束时间原文（如 "2026-12-20 23:59"），由界面套用本地化模板展示 */
+    val endText: String? = null,
     val source: Source = Source.DOM,
     val capturedAt: Long = System.currentTimeMillis(),
 )

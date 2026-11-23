@@ -13,12 +13,13 @@ import org.json.JSONObject
  */
 object QuotaCache {
 
-    private const val PREFS = "quota_cache_v2"
+    private const val PREFS = "quota_cache_v3"
 
     fun save(context: Context, platform: Platform, snapshot: QuotaSnapshot) {
         val json = JSONObject().apply {
             put("planName", snapshot.planName ?: JSONObject.NULL)
-            put("resetAt", snapshot.resetAt ?: JSONObject.NULL)
+            put("remainText", snapshot.remainText ?: JSONObject.NULL)
+            put("endText", snapshot.endText ?: JSONObject.NULL)
             put("source", snapshot.source.name)
             put("capturedAt", snapshot.capturedAt)
             put(
@@ -31,6 +32,7 @@ object QuotaCache {
                                 put("used", item.used ?: JSONObject.NULL)
                                 put("total", item.total ?: JSONObject.NULL)
                                 put("percent", item.percent ?: JSONObject.NULL)
+                                put("percentText", item.percentText ?: JSONObject.NULL)
                                 put("resetHint", item.resetHint ?: JSONObject.NULL)
                             }
                         )
@@ -50,12 +52,17 @@ object QuotaCache {
                 val arr = json.optJSONArray("items") ?: JSONArray()
                 for (i in 0 until arr.length()) {
                     val o = arr.optJSONObject(i) ?: continue
+                    val label = o.optString("label").takeIf { it.isNotBlank() && it != "null" }
+                        ?: continue
                     add(
                         QuotaItem(
-                            label = o.optString("label", "额度"),
+                            label = label,
                             used = o.optNullableDouble("used"),
                             total = o.optNullableDouble("total"),
                             percent = o.optNullableDouble("percent"),
+                            percentText = o.optString("percentText").takeIf {
+                                it.isNotBlank() && it != "null"
+                            },
                             resetHint = o.optString("resetHint").takeIf {
                                 it.isNotBlank() && it != "null"
                             },
@@ -74,7 +81,8 @@ object QuotaCache {
                 planName = json.optString("planName").takeIf { it.isNotBlank() && it != "null" },
                 items = items,
                 lines = lines,
-                resetAt = json.optString("resetAt").takeIf { it.isNotBlank() && it != "null" },
+                remainText = json.optString("remainText").takeIf { it.isNotBlank() && it != "null" },
+                endText = json.optString("endText").takeIf { it.isNotBlank() && it != "null" },
                 source = runCatching { Source.valueOf(json.getString("source")) }.getOrDefault(Source.DOM),
                 capturedAt = json.optLong("capturedAt", System.currentTimeMillis()),
             )

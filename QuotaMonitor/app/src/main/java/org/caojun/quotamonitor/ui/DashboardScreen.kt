@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -33,6 +34,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -41,6 +43,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -51,6 +54,7 @@ import org.caojun.quotamonitor.R
 import org.caojun.quotamonitor.model.Platform
 import org.caojun.quotamonitor.model.PlatformState
 import org.caojun.quotamonitor.model.QuotaItem
+import org.caojun.quotamonitor.model.QuotaSnapshot
 import org.caojun.quotamonitor.model.SyncStatus
 import org.caojun.quotamonitor.viewmodel.HiddenWebFrame
 import org.caojun.quotamonitor.viewmodel.QuotaController
@@ -82,9 +86,9 @@ fun DashboardScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text("套餐限额", fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.dashboard_title), fontWeight = FontWeight.Bold)
                         Text(
-                            "OpenCode / 火山引擎 Coding Plan",
+                            stringResource(R.string.dashboard_subtitle),
                             style = MaterialTheme.typography.bodySmall,
                             color = Muted,
                         )
@@ -99,13 +103,14 @@ fun DashboardScreen(
                     IconButton(onClick = { controller.refreshAll() }) {
                         Icon(
                             painter = painterResource(R.drawable.ic_refresh),
-                            contentDescription = "全部刷新",
+                            contentDescription = stringResource(R.string.action_refresh_all),
                             tint = Accent,
                         )
                     }
                 },
             )
         },
+        bottomBar = { FooterBar() },
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize()) {
             // 常驻隐藏 WebView 宿主：全尺寸、置于内容下层、不拦截触摸。
@@ -131,7 +136,7 @@ fun DashboardScreen(
                     .fillMaxSize()
                     .background(Paper)
                     .padding(padding),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 24.dp),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 items(Platform.entries, key = { it.name }) { platform ->
@@ -142,7 +147,6 @@ fun DashboardScreen(
                         onOpenConsole = { onOpenConsole(platform) },
                     )
                 }
-                item { FooterNote() }
             }
         }
     }
@@ -167,7 +171,7 @@ private fun PlatformCard(
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    platform.title,
+                    stringResource(platform.titleRes),
                     style = MaterialTheme.typography.titleMedium,
                     color = Ink,
                     modifier = Modifier.weight(1f),
@@ -178,7 +182,7 @@ private fun PlatformCard(
             state.snapshot?.planName?.let { plan ->
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    "套餐：$plan",
+                    stringResource(R.string.plan_label, plan),
                     style = MaterialTheme.typography.bodyMedium,
                     color = Accent,
                     fontWeight = FontWeight.Medium,
@@ -188,11 +192,11 @@ private fun PlatformCard(
             Spacer(Modifier.height(12.dp))
 
             when (state.status) {
-                SyncStatus.IDLE -> EmptyHint("尚未同步，点下方按钮开始")
+                SyncStatus.IDLE -> EmptyHint(stringResource(R.string.hint_not_synced))
 
                 SyncStatus.LOADING -> {
                     if (state.snapshot == null) {
-                        EmptyHint("正在加载控制台页面…")
+                        EmptyHint(stringResource(R.string.hint_loading))
                     } else {
                         state.snapshot.items.forEach { MetricRow(it) }
                     }
@@ -206,9 +210,9 @@ private fun PlatformCard(
                 }
 
                 SyncStatus.NEED_LOGIN -> {
-                    EmptyHint("需要登录才能读取额度")
+                    EmptyHint(stringResource(R.string.hint_need_login))
                     Text(
-                        state.message ?: platform.loginHint,
+                        state.message ?: stringResource(platform.loginHintRes),
                         style = MaterialTheme.typography.bodySmall,
                         color = WarnAmber,
                         modifier = Modifier.padding(top = 4.dp),
@@ -218,13 +222,13 @@ private fun PlatformCard(
                 SyncStatus.ERROR -> {
                     state.snapshot?.let { snap ->
                         if (snap.items.isEmpty() && snap.lines.isEmpty()) {
-                            EmptyHint("同步失败")
+                            EmptyHint(stringResource(R.string.hint_sync_failed))
                         } else {
                             snap.items.forEach { MetricRow(it) }
                         }
-                    } ?: EmptyHint("同步失败")
+                    } ?: EmptyHint(stringResource(R.string.hint_sync_failed))
                     Text(
-                        state.message ?: "未知错误",
+                        state.message ?: stringResource(R.string.hint_unknown_error),
                         style = MaterialTheme.typography.bodySmall,
                         color = ErrRed,
                         modifier = Modifier.padding(top = 4.dp),
@@ -234,7 +238,7 @@ private fun PlatformCard(
                 SyncStatus.OK -> {
                     val snap = state.snapshot
                     if (snap == null || (snap.items.isEmpty() && snap.lines.isEmpty())) {
-                        EmptyHint("页面已加载，但未识别到额度数据")
+                        EmptyHint(stringResource(R.string.hint_no_quota_data))
                     } else {
                         if (snap.items.isEmpty()) {
                             snap.lines.take(8).forEach { line ->
@@ -250,7 +254,7 @@ private fun PlatformCard(
                         } else {
                             snap.items.forEach { MetricRow(it) }
                         }
-                        snap.resetAt?.let { reset ->
+                        resetSummary(snap)?.let { reset ->
                             Spacer(Modifier.height(6.dp))
                             Text(
                                 reset,
@@ -261,13 +265,22 @@ private fun PlatformCard(
                         Spacer(Modifier.height(6.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                "更新于 ${formatTime(snap.capturedAt)}",
+                                stringResource(
+                                    R.string.updated_at,
+                                    formatTime(snap.capturedAt, stringResource(R.string.time_pattern)),
+                                ),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = Muted,
                                 modifier = Modifier.weight(1f),
                             )
                             Text(
-                                if (snap.source == org.caojun.quotamonitor.model.Source.NETWORK) "接口数据" else "页面解析",
+                                stringResource(
+                                    if (snap.source == org.caojun.quotamonitor.model.Source.NETWORK) {
+                                        R.string.source_network
+                                    } else {
+                                        R.string.source_dom
+                                    },
+                                ),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = Muted,
                             )
@@ -283,13 +296,21 @@ private fun PlatformCard(
                     enabled = state.status != SyncStatus.LOADING,
                     modifier = Modifier.weight(1f),
                 ) {
-                    Text("刷新")
+                    Text(stringResource(R.string.action_refresh))
                 }
                 FilledTonalButton(
                     onClick = onOpenConsole,
                     modifier = Modifier.weight(1f),
                 ) {
-                    Text(if (state.status == SyncStatus.NEED_LOGIN) "去登录" else "打开网页")
+                    Text(
+                        stringResource(
+                            if (state.status == SyncStatus.NEED_LOGIN) {
+                                R.string.action_login
+                            } else {
+                                R.string.action_open_page
+                            },
+                        ),
+                    )
                 }
             }
         }
@@ -299,11 +320,11 @@ private fun PlatformCard(
 @Composable
 private fun StatusChip(state: PlatformState) {
     val (label, color) = when (state.status) {
-        SyncStatus.IDLE -> "未同步" to Muted
-        SyncStatus.LOADING -> "同步中…" to Accent
-        SyncStatus.NEED_LOGIN -> "需登录" to WarnAmber
-        SyncStatus.OK -> "已同步" to OkGreen
-        SyncStatus.ERROR -> "失败" to ErrRed
+        SyncStatus.IDLE -> stringResource(R.string.status_idle) to Muted
+        SyncStatus.LOADING -> stringResource(R.string.status_loading) to Accent
+        SyncStatus.NEED_LOGIN -> stringResource(R.string.status_need_login) to WarnAmber
+        SyncStatus.OK -> stringResource(R.string.status_ok) to OkGreen
+        SyncStatus.ERROR -> stringResource(R.string.status_error) to ErrRed
     }
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -379,29 +400,84 @@ private fun MetricRow(item: QuotaItem) {
     }
 }
 
+@Composable
 private fun valueText(item: QuotaItem): String = when {
-    item.used != null && item.total != null ->
-        "${formatNum(item.used)} / ${formatNum(item.total)}" +
-            (item.percent?.let { "（${"%.0f".format(it)}%）" } ?: "")
-    item.percent != null -> "${"%.1f".format(item.percent)}%"
-    item.used != null -> formatNum(item.used)
-    else -> "—"
+    item.used != null && item.total != null -> {
+        val pair = stringResource(
+            R.string.value_pair,
+            formatNumber(item.used, compact = true),
+            formatNumber(item.total, compact = true),
+        )
+        val percent = item.percent
+        if (percent != null) {
+            pair + stringResource(R.string.value_percent_in_parens, formatPercentText(item.percentText, percent))
+        } else {
+            pair
+        }
+    }
+    item.percent != null ->
+        formatPercentText(item.percentText, item.percent) + stringResource(R.string.percent_suffix)
+    item.used != null -> formatNumber(item.used, compact = true)
+    else -> stringResource(R.string.value_placeholder)
 }
 
-private fun formatNum(v: Double): String {
+/**
+ * 格式化百分比数值（不含 % 符号）：
+ * 优先展示网页原始文本（小数位与网页完全一致），否则去掉尾随零兜底。
+ * 绝不写死小数位数。
+ */
+internal fun formatPercentText(text: String?, value: Double): String {
+    val trimmed = text?.trim()
+    if (!trimmed.isNullOrEmpty() && trimmed.matches(Regex("""\d+(\.\d+)?"""))) {
+        return trimmed
+    }
+    // 去尾随零：29.0 → "29"，13.510 → "13.51"，100.0 → "100"
+    return java.math.BigDecimal.valueOf(value)
+        .stripTrailingZeros()
+        .toPlainString()
+}
+
+/** 数字格式化（不带单位缩写），缩写后缀走字符串资源。 */
+@Composable
+private fun formatNumber(v: Double, compact: Boolean): String {
     val abs = abs(v)
     return when {
-        abs >= 1_000_000_000 -> "%.1fB".format(v / 1_000_000_000)
-        abs >= 1_000_000 -> "%.1fM".format(v / 1_000_000)
-        abs >= 10_000 -> "%.1fK".format(v / 1_000)
+        compact && abs >= 1_000_000_000 ->
+            oneDecimal(v / 1_000_000_000) + stringResource(R.string.compact_billion)
+        compact && abs >= 1_000_000 ->
+            oneDecimal(v / 1_000_000) + stringResource(R.string.compact_million)
+        compact && abs >= 10_000 ->
+            oneDecimal(v / 1_000) + stringResource(R.string.compact_thousand)
         v == v.toLong().toDouble() -> String.format(Locale.US, "%,d", v.toLong())
-        else -> "%.2f".format(v)
+        else -> twoDecimals(v)
     }
 }
 
-private val timeFormat = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
+/** 保留 1 位小数（数值格式，不是文案）。 */
+private fun oneDecimal(v: Double): String = String.format(Locale.US, "%.1f", v)
 
-private fun formatTime(ts: Long): String = timeFormat.format(Date(ts))
+/** 保留 2 位小数（数值格式，不是文案）。 */
+private fun twoDecimals(v: Double): String = String.format(Locale.US, "%.2f", v)
+
+private fun formatTime(ts: Long, pattern: String): String =
+    SimpleDateFormat(pattern, Locale.getDefault()).format(Date(ts))
+
+/** 套餐级汇总：“剩余 28天 · 结束于 2026-12-20 23:59”（模板走字符串资源）。 */
+@Composable
+private fun resetSummary(snapshot: QuotaSnapshot): String? {
+    val remain = snapshot.remainText
+    val end = snapshot.endText
+    return when {
+        remain != null && end != null -> stringResource(
+            R.string.reset_summary,
+            stringResource(R.string.reset_remain, remain),
+            stringResource(R.string.reset_end, end),
+        )
+        remain != null -> stringResource(R.string.reset_remain, remain)
+        end != null -> stringResource(R.string.reset_end, end)
+        else -> null
+    }
+}
 
 // ---------------------------------------------------------------- 其他
 
@@ -415,13 +491,20 @@ private fun EmptyHint(text: String) {
     )
 }
 
+/** 固定在屏幕底部的说明文字，与底边留出一个字的高度。 */
 @Composable
-private fun FooterNote() {
-    Text(
-        "说明：额度数据来自各控制台网页的接口与页面解析，仅供参考，" +
-            "以官网控制台显示为准。登录状态保存在本机 WebView 中。",
-        style = MaterialTheme.typography.bodySmall,
-        color = Muted,
-        modifier = Modifier.padding(top = 4.dp),
-    )
+private fun FooterBar() {
+    Surface(
+        color = Paper,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Text(
+            stringResource(R.string.footer_note),
+            style = MaterialTheme.typography.bodySmall,
+            color = Muted,
+            modifier = Modifier
+                .navigationBarsPadding()
+                .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp),
+        )
+    }
 }

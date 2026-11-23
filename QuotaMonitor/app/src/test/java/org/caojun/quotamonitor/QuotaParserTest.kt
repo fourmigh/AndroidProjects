@@ -34,6 +34,7 @@ class QuotaParserTest {
 
         val fiveHour = s.items.first { it.label == "5-hour window" }
         assertEquals(29.0, fiveHour.percent!!, 0.01)
+        assertEquals("29", fiveHour.percentText)
         assertEquals("Resets in 2h 15m", fiveHour.resetHint)
 
         val weekly = s.items.first { it.label == "Weekly" }
@@ -78,7 +79,7 @@ class QuotaParserTest {
         )
     }
 
-    // ------------------------------------------------- 火山引擎额度页（登录后）
+    // ------------------------------------------------- 火山方舟额度页（登录后）
 
     /** 真实页面结构：套餐信息 + 三项用量（大号百分比单独一行，刻度行紧随其后）。 */
     private val volcQuotaScan = """
@@ -105,19 +106,24 @@ class QuotaParserTest {
 
         val fiveHour = s.items.first { it.label == "近5小时用量" }
         assertEquals(100.0, fiveHour.percent!!, 0.01)
+        assertEquals("100", fiveHour.percentText)
         assertEquals("48分后重置", fiveHour.resetHint)
 
         val weekly = s.items.first { it.label == "近一周用量" }
         assertEquals(13.51, weekly.percent!!, 0.01)
+        // 与网页一致：保留两位小数的原始文本
+        assertEquals("13.51", weekly.percentText)
         assertEquals("6天10小时后重置", weekly.resetHint)
 
         val monthly = s.items.first { it.label == "近一月用量" }
         assertEquals(20.21, monthly.percent!!, 0.01)
+        assertEquals("20.21", monthly.percentText)
         assertEquals("27天10小时后重置", monthly.resetHint)
 
         assertEquals("Coding Plan Lite 套餐", s.planName)
-        assertTrue(s.resetAt!!.contains("剩余 28天"))
-        assertTrue(s.resetAt!!.contains("结束于 2026-12-20 23:59"))
+        // 结构化字段（不再在数据层拼中文，由界面套用字符串资源模板）
+        assertEquals("28天", s.remainText)
+        assertEquals("2026-12-20 23:59", s.endText)
     }
 
     @Test
@@ -125,7 +131,7 @@ class QuotaParserTest {
         val scan = """
             {"url":"https://console.volcengine.com/auth/login","title":"登录",
              "hasPassword":true,"loginLike":true,"bars":[],
-             "lines":["火山引擎","账号登录","密码","验证码","登录","注册"]}
+             "lines":["火山方舟","账号登录","密码","验证码","登录","注册"]}
         """.trimIndent()
         assertNull(QuotaParser.parseDom(Platform.VOLC, scan))
     }
@@ -211,7 +217,10 @@ class QuotaParserTest {
         val dom = QuotaParser.parseDom(Platform.OPENCODE, openCodeQuotaScan)!!
         val network = listOf(
             org.caojun.quotamonitor.model.QuotaItem(label = "5-hour window", used = 1.0, total = 2.0),
-            org.caojun.quotamonitor.model.QuotaItem(label = "extra-metric", used = 3.0, total = 9.0),
+            // 非已知指标名（旧版曾产生名为“额度”的野数据）→ 必须被过滤
+            org.caojun.quotamonitor.model.QuotaItem(label = "额度", used = 3.0, total = 9.0),
+            // 已知指标名但 DOM 未覆盖 → 可作为补充
+            org.caojun.quotamonitor.model.QuotaItem(label = "Weekly", used = 3.0, total = 9.0),
         )
         val merged = QuotaParser.merge(network, dom)!!
         assertEquals(Source.DOM, merged.source)
@@ -219,8 +228,10 @@ class QuotaParserTest {
         val fiveHour = merged.items.first { it.label == "5-hour window" }
         assertEquals(29.0, fiveHour.percent!!, 0.01)
         assertEquals("Resets in 2h 15m", fiveHour.resetHint)
-        // 网络独有指标作为补充
-        assertTrue(merged.items.any { it.label == "extra-metric" })
+        // 无名“额度”项被过滤
+        assertFalse(merged.items.any { it.label == "额度" })
+        // 合并后仍只有三项已知指标（Weekly 与 DOM 重复，不新增）
+        assertEquals(3, merged.items.size)
     }
 
     @Test
@@ -230,15 +241,46 @@ class QuotaParserTest {
     }
 
     @Test
-    fun `merge without dom returns network snapshot`() {
-        val network = listOf(org.caojun.quotamonitor.model.QuotaItem(label = "Monthly", percent = 65.0))
+    fun `merge without dom only keeps known metric labels`() {
+        val network = listOf(
+            org.caojun.quotamonitor.model.QuotaItem(label = "Monthly", percent = 65.0),
+            org.caojun.quotamonitor.model.QuotaItem(label = "额度", percent = 10.0),
+            org.caojun.quotamonitor.model.QuotaItem(label = "theme", percent = 20.0),
+        )
         val merged = QuotaParser.merge(network, null)!!
         assertEquals(Source.NETWORK, merged.source)
         assertEquals(1, merged.items.size)
+        assertEquals("Monthly", merged.items.first().label)
     }
 
     @Test
     fun `merge with nothing returns null`() {
         assertNull(QuotaParser.merge(emptyList(), null))
+    }
+
+    // ------------------------------------------------- 百分比展示（与网页一致，不写死小数位）
+
+    @Test
+    fun `formatPercent prefers raw text from web page`() {
+        // OpenCode 网页："29% used" → 原始文本 "29" → 显示 29%（无小数）
+        assertEquals("29", org.caojun.quotamonitor.ui.formatPercentText("29", 29.0))
+        // 火山方舟网页："13.51 %" → 原始文本 "13.51" → 显示 13.51%（两位小数）
+        assertEquals("13.51", org.caojun.quotamonitor.ui.formatPercentText("13.51", 13.51))
+        assertEquals("100", org.caojun.quotamonitor.ui.formatPercentText("100", 100.0))
+        assertEquals("20.21", org.caojun.quotamonitor.ui.formatPercentText("20.21", 20.21))
+        // 网页若有更精细的小数也原样保留
+        assertEquals("13.510", org.caojun.quotamonitor.ui.formatPercentText("13.510", 13.51))
+    }
+
+    @Test
+    fun `formatPercent falls back to stripped zeros when no raw text`() {
+        // Double 兜底：去掉尾随零，绝不出现写死的 "%.1f"
+        assertEquals("29", org.caojun.quotamonitor.ui.formatPercentText(null, 29.0))
+        assertEquals("13.51", org.caojun.quotamonitor.ui.formatPercentText(null, 13.51))
+        assertEquals("100", org.caojun.quotamonitor.ui.formatPercentText(null, 100.0))
+        assertEquals("0.5", org.caojun.quotamonitor.ui.formatPercentText(null, 0.5))
+        // 非法原始文本（如空串、含 % 号）→ 走兜底
+        assertEquals("29", org.caojun.quotamonitor.ui.formatPercentText("", 29.0))
+        assertEquals("29", org.caojun.quotamonitor.ui.formatPercentText("29%", 29.0))
     }
 }

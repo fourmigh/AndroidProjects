@@ -25,8 +25,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import org.caojun.quotamonitor.R
 import org.caojun.quotamonitor.model.Platform
 import org.caojun.quotamonitor.model.SyncStatus
 import org.caojun.quotamonitor.viewmodel.QuotaController
@@ -52,6 +54,7 @@ fun ConsoleWebScreen(
     val st = controller.states[platform]
     val loading = st?.status == SyncStatus.LOADING
     var uaDesktop by remember(platform) { mutableStateOf(controller.isDesktopUa(platform)) }
+    val title = stringResource(platform.titleRes)
 
     Scaffold(
         containerColor = Paper,
@@ -62,14 +65,18 @@ fun ConsoleWebScreen(
                     title = {
                         Column {
                             Text(
-                                platform.title,
+                                title,
                                 fontWeight = FontWeight.SemiBold,
                                 style = MaterialTheme.typography.titleMedium,
                             )
                             Text(
-                                if (loading) "加载中…"
-                                else if (st?.status == SyncStatus.NEED_LOGIN) "请在页面中登录"
-                                else "登录状态与仪表盘共用",
+                                stringResource(
+                                    when {
+                                        loading -> R.string.console_loading
+                                        st?.status == SyncStatus.NEED_LOGIN -> R.string.console_login_hint
+                                        else -> R.string.console_shared_session
+                                    },
+                                ),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = Muted,
                             )
@@ -77,12 +84,12 @@ fun ConsoleWebScreen(
                     },
                     navigationIcon = {
                         TextButton(onClick = onBack) {
-                            Text("‹ 返回", color = Ink)
+                            Text(stringResource(R.string.console_back), color = Ink)
                         }
                     },
                     actions = {
                         TextButton(onClick = { controller.refresh(platform) }) {
-                            Text("刷新", color = Accent)
+                            Text(stringResource(R.string.action_refresh), color = Accent)
                         }
                         TextButton(
                             onClick = {
@@ -90,7 +97,12 @@ fun ConsoleWebScreen(
                                 controller.toggleDesktopUa(platform)
                             },
                         ) {
-                            Text(if (uaDesktop) "移动版" else "桌面版", color = Accent)
+                            Text(
+                                stringResource(
+                                    if (uaDesktop) R.string.console_ua_mobile else R.string.console_ua_desktop,
+                                ),
+                                color = Accent,
+                            )
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(

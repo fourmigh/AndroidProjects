@@ -1,6 +1,6 @@
 # QuotaMonitor（套餐限额）
 
-手机端查看 **OpenCode Console** 与 **火山引擎 Coding Plan** 套餐限额的 Android 应用。
+手机端查看 **OpenCode Console** 与 **火山方舟 Coding Plan** 套餐限额的 Android 应用。
 
 ## 工作原理
 
@@ -16,7 +16,7 @@
   - **OpenCode**：必须命中 `n% used` 模式，再定位
     `5-hour window` / `Weekly` / `Monthly` 三块，提取各自的 `Resets in …` 与百分比；
     宣传页（`Get started`、`60% off`、`Monthly usage $60 $120` 等）→ 判定「需登录」。
-  - **火山引擎**：必须命中 `近5小时用量` / `近一周用量` / `近一月用量` 之一，
+  - **火山方舟**：必须命中 `近5小时用量` / `近一周用量` / `近一月用量` 之一，
     提取 `…后重置` 倒计时与大号百分比（自动忽略 `0% 50% 100%` 刻度行），
     并解析左侧 `Coding Plan … 套餐`、`剩余时间`、`结束时间`；
     登录页 / 其他页面 → 判定「需登录」。
@@ -33,7 +33,7 @@
 
 - **OpenCode**：套餐名（Go 等）、`5-hour window` / `Weekly` / `Monthly`
   三项进度条 + 各自的 `Resets in …` 重置倒计时 + `n% used`。
-- **火山引擎**：`Coding Plan Lite 套餐`、`剩余 28天 · 结束于 …`，
+- **火山方舟**：`Coding Plan Lite 套餐`、`剩余 28天 · 结束于 …`，
   `近5小时用量` / `近一周用量` / `近一月用量` 三项进度条 + `…后重置` 倒计时 + 百分比。
 
 ## 界面

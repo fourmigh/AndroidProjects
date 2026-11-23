@@ -14,7 +14,7 @@ import kotlin.math.abs
  *
  * 登录后的额度卡片结构固定，因此 DOM 层采用**平台专属精准解析**：
  * - OpenCode：`5-hour window` / `Weekly` / `Monthly` + `Resets in …` + `n% used`
- * - 火山引擎：`近5小时用量` / `近一周用量` / `近一月用量` + `…后重置` + 大号百分比
+ * - 火山方舟：`近5小时用量` / `近一周用量` / `近一月用量` + `…后重置` + 大号百分比
  *
  * 页面不含上述特征（停留在宣传页 / 登录页）时返回 null，
  * 由控制器判定为「需登录」——绝不用通用启发式猜测，避免把宣传文案当额度。
@@ -32,7 +32,7 @@ object QuotaParser {
     private val OC_RESET = Regex("""(?i)resets?\s+in\s+\S[^,;.\n]*""")
     private val OC_PLAN = Regex("""(?i)when\s+your\s+(.+?)\s+usage\s+resets""")
 
-    // ------------------------------------------------------------ 火山引擎
+    // ------------------------------------------------------------ 火山方舟
 
     private val VC_METRICS = listOf("近5小时用量", "近一周用量", "近一月用量")
     private val VC_PLAN_LINE = Regex("""Coding\s*Plan\s*\S*\s*套餐""")
@@ -75,7 +75,9 @@ object QuotaParser {
             val window = lines.subList(idx, minOf(idx + 4, lines.size))
             val windowText = window.joinToString(" \n ")
 
-            val percent = OC_PERCENT_USED.find(windowText)?.groupValues?.get(1)?.toDoubleOrNull()
+            val percentMatch = OC_PERCENT_USED.find(windowText)
+            val percentText = percentMatch?.groupValues?.get(1)
+            val percent = percentText?.toDoubleOrNull()
             val reset = OC_RESET.find(windowText)?.value?.trim()
 
             if (percent != null) {
@@ -88,6 +90,7 @@ object QuotaParser {
                     label = label,
                     percent = percent.coerceIn(0.0, 100.0),
                     resetHint = reset,
+                    percentText = percentText,
                 )
             }
         }
@@ -120,7 +123,8 @@ object QuotaParser {
             planName = planName,
             items = items.values.toList(),
             lines = items.values.mapNotNull { it.resetHint }.ifEmpty { emptyList() },
-            resetAt = null,
+            remainText = null,
+            endText = null,
             source = Source.DOM,
         )
     }
@@ -137,13 +141,16 @@ object QuotaParser {
         for ((name, idx) in found) {
             val window = lines.subList(idx, minOf(idx + 8, lines.size))
             val reset = window.drop(1).firstOrNull { VC_RESET_LINE.containsMatchIn(it) }
-            val percent = window.drop(1)
+            val percentMatch = window.drop(1)
                 .firstOrNull { VC_PERCENT_LINE.matches(it) }
-                ?.let { m -> VC_PERCENT_LINE.find(m)!!.groupValues[1].toDoubleOrNull() }
+                ?.let { VC_PERCENT_LINE.find(it) }
+            val percentText = percentMatch?.groupValues?.get(1)
+            val percent = percentText?.toDoubleOrNull()
             items[name] = QuotaItem(
                 label = name,
                 percent = percent?.coerceIn(0.0, 100.0),
                 resetHint = reset,
+                percentText = percentText,
             )
         }
 
@@ -180,10 +187,6 @@ object QuotaParser {
         }
         val endAt = infoValue("结束时间")
         val remain = infoValue("剩余时间")
-        val resetAt = listOfNotNull(
-            remain?.let { "剩余 $it" },
-            endAt?.let { "结束于 $it" },
-        ).joinToString(" · ").ifEmpty { null }
 
         val infoLines = VC_INFO_KEYS.mapNotNull { key ->
             lines.firstOrNull { it.startsWith(key) && it.length <= 60 }
@@ -193,7 +196,8 @@ object QuotaParser {
             planName = planName,
             items = items.values.toList(),
             lines = infoLines,
-            resetAt = resetAt,
+            remainText = remain,
+            endText = endAt,
             source = Source.DOM,
         )
     }
@@ -240,9 +244,12 @@ object QuotaParser {
         when (node) {
             is JSONObject -> {
                 val label = labelOf(node)
-                val item = itemFromObject(node, label)
-                if (item != null && out.size < 40) {
-                    out.putIfAbsent(item.label, item)
+                // 未知指标名直接丢弃，绝不生成名为“额度”的野数据。
+                if (label != null) {
+                    val item = itemFromObject(node, label)
+                    if (item != null && out.size < 40) {
+                        out.putIfAbsent(item.label, item)
+                    }
                 }
                 for (key in node.keys()) {
                     val v = node.opt(key)
@@ -259,12 +266,13 @@ object QuotaParser {
         }
     }
 
-    private fun labelOf(obj: JSONObject): String {
+    /** 仅当对象带有可识别的指标名时返回，否则返回 null（该对象被丢弃）。 */
+    private fun labelOf(obj: JSONObject): String? {
         for (k in LABEL_KEYS) {
             val v = obj.opt(k)
             if (v is String && v.isNotBlank() && v.length <= 48) return v
         }
-        return "额度"
+        return null
     }
 
     private fun itemFromObject(obj: JSONObject, label: String): QuotaItem? {
@@ -328,18 +336,20 @@ object QuotaParser {
     // ------------------------------------------------------------ 合并
 
     /**
-     * DOM 精准数据优先（含 resetHint），网络数据仅补充 DOM 未覆盖的指标。
+     * DOM 精准数据优先（含 resetHint），网络数据仅补充**已知指标名**的项，
+     * 非已知指标（如无名的 "额度"）一律不合并。
      * dom 为 null 时返回网络快照（调用方需自行确认已登录，见控制器超时逻辑）。
      */
     fun merge(networkItems: List<QuotaItem>, dom: QuotaSnapshot?): QuotaSnapshot? {
+        val knownNetwork = networkItems.filter { isKnownMetricLabel(it.label) }
         if (dom == null) {
-            if (networkItems.isEmpty()) return null
-            return QuotaSnapshot(items = networkItems, source = Source.NETWORK)
+            if (knownNetwork.isEmpty()) return null
+            return QuotaSnapshot(items = knownNetwork, source = Source.NETWORK)
         }
-        if (networkItems.isEmpty()) return dom
+        if (knownNetwork.isEmpty()) return dom
         val merged = LinkedHashMap<String, QuotaItem>()
         dom.items.forEach { merged.putIfAbsent(it.label, it) }
-        networkItems.forEach { net ->
+        knownNetwork.forEach { net ->
             val duplicate = merged.keys.any { it.equals(net.label, ignoreCase = true) }
             if (!duplicate && merged.size < 60) merged.putIfAbsent(net.label, net)
         }

@@ -21,6 +21,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import org.caojun.quotamonitor.R
 import org.caojun.quotamonitor.data.JsScripts
 import org.caojun.quotamonitor.data.QuotaCache
 import org.caojun.quotamonitor.data.QuotaParser
@@ -219,7 +220,10 @@ class QuotaController(private val context: Context) {
             if (st.status != SyncStatus.LOADING) return
             states[platform] = st.copy(
                 status = SyncStatus.ERROR,
-                message = "页面加载失败：${error?.description ?: "网络错误"}",
+                message = context.getString(
+                    R.string.msg_page_load_failed,
+                    error?.description ?: context.getString(R.string.msg_network_error),
+                ),
                 progress = -1,
             )
         }
@@ -296,6 +300,8 @@ class QuotaController(private val context: Context) {
         val items = QuotaParser.parseNetwork(platform, url, body) ?: return
         for (item in items) {
             if (s.networkItems.size >= 60) break
+            // 只接受已知指标名，杜绝无名的“额度”野数据混入。
+            if (!QuotaParser.isKnownMetricLabel(item.label)) continue
             if (s.networkItems.none { it.label == item.label }) {
                 s.networkItems.add(item)
             }
@@ -363,13 +369,13 @@ class QuotaController(private val context: Context) {
         states[platform] = if (looksLogin) {
             st.copy(
                 status = SyncStatus.NEED_LOGIN,
-                message = platform.loginHint,
+                message = context.getString(platform.loginHintRes),
                 progress = -1,
             )
         } else {
             st.copy(
                 status = SyncStatus.ERROR,
-                message = "未识别到额度数据；请点「打开网页」登录并确认额度卡片后重试",
+                message = context.getString(R.string.msg_quota_not_found),
                 progress = -1,
             )
         }
