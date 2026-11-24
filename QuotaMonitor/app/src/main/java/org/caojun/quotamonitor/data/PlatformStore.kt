@@ -45,6 +45,9 @@ class PlatformStore(context: Context) {
         return defaults
     }
 
+    /** 按 URL 主机名查找内置模板（用于自动识别时继承套餐名/页面特征等高级规则）。 */
+    fun templateForUrl(url: String): PlatformConfig? = matchTemplate(readDefaults(), url)
+
     fun newId(): String = UUID.randomUUID().toString()
 
     // ---------------------------------------------------------------- 解析 / 序列化
@@ -61,6 +64,15 @@ class PlatformStore(context: Context) {
         private const val PREFS = "platform_store"
         private const val KEY_PLATFORMS = "platforms"
         private const val VERSION = 1
+
+        /** 在内置模板里按主机名匹配（纯函数，便于测试）。 */
+        fun matchTemplate(defaults: List<PlatformConfig>, url: String): PlatformConfig? {
+            val host = runCatching { java.net.URI(url).host }.getOrNull()?.lowercase() ?: return null
+            return defaults.firstOrNull { def ->
+                val defHost = runCatching { java.net.URI(def.url).host }.getOrNull()?.lowercase()
+                defHost != null && (defHost == host || defHost.endsWith(".$host") || host.endsWith(".$defHost"))
+            }
+        }
 
         fun parseConfigs(arr: JSONArray): List<PlatformConfig> {
             val list = mutableListOf<PlatformConfig>()

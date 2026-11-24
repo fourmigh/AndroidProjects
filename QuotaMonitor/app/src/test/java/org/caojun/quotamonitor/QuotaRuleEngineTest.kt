@@ -249,6 +249,45 @@ class QuotaRuleEngineTest {
     }
 
     @Test
+    fun `detector ignores reset rows and group titles`() {
+        // 截图中的真实结构：分组标题 + 指标名 + 重置行 + 大号数字
+        val scan = """
+            {"url":"https://console.volcengine.com/ark/region:cn-beijing/subscription/coding-plan",
+             "title":"火山方舟 - Coding plan","hasPassword":false,"loginLike":false,"bars":[],
+             "lines":["套餐用量限额",
+                      "近5小时用量","29.9","%","4小时37分后重置","0%","50%","100%",
+                      "近一周用量","44.11","%","5天8小时后重置","0%","50%","100%",
+                      "近一月用量","35.51","%","26天8小时后重置","0%","50%","100%"]}
+        """.trimIndent()
+        val found = QuotaAutoDetector.detect(scan)
+        val labels = found.map { it.label }
+        // 只有三项真实指标
+        assertEquals(3, found.size)
+        assertTrue(labels.containsAll(listOf("近5小时用量", "近一周用量", "近一月用量")))
+        // 分组标题不能成为指标
+        assertFalse(labels.contains("套餐用量限额"))
+        // 重置倒计时行不能成为指标
+        assertFalse(labels.any { it.contains("后重置") })
+    }
+
+    @Test
+    fun `engine ignores reset-like metric labels from bad configs`() {
+        val custom = PlatformConfig(
+            id = "bad",
+            name = "Bad",
+            url = "https://example.com",
+            metrics = listOf(
+                MetricRule(label = "近一周用量", mode = MetricMode.PERCENT_NEXT_NUMBER),
+                MetricRule(label = "5天8小时后重置", mode = MetricMode.PERCENT_NEXT_NUMBER),
+            ),
+        )
+        val snap = QuotaRules.parseDom(custom, volcQuotaScan)
+        assertNotNull(snap)
+        assertEquals(1, snap!!.items.size)
+        assertEquals("近一周用量", snap.items.first().label)
+    }
+
+    @Test
     fun `detector returns nothing for marketing page`() {
         val scan = """
             {"url":"https://x","title":"","hasPassword":false,"loginLike":false,"bars":[],
@@ -322,6 +361,116 @@ class QuotaRuleEngineTest {
         assertEquals("0.5", org.caojun.quotamonitor.ui.formatPercentText(null, 0.5))
         assertEquals("29", org.caojun.quotamonitor.ui.formatPercentText("", 29.0))
         assertEquals("29", org.caojun.quotamonitor.ui.formatPercentText("29%", 29.0))
+    }
+
+    @Test
+    fun `engine truncates window at next metric to avoid cross block values`() {
+        // 复现问题：页面上 5-hour window 多次出现（图例/说明），
+        // 且窗口若不被截断会跨到 Monthly 的 89% 或 Weekly 的 59%。
+        val scan = """
+            {"url":"https://opencode.ai/console","title":"Activity | OpenCode Console",
+             "hasPassword":false,"loginLike":false,"bars":[],
+             "lines":["5-hour window",
+                      "Limits",
+                      "Monthly",
+                      "89% used",
+                      "5-hour window",
+                      "39% used",
+                      "Weekly",
+                      "59% used"]}
+        """.trimIndent()
+        val cfg = config("opencode").copy(
+            metrics = listOf(
+                MetricRule(label = "Monthly", mode = MetricMode.PERCENT_INLINE),
+                MetricRule(label = "5-hour window", mode = MetricMode.PERCENT_INLINE),
+                MetricRule(label = "Weekly", mode = MetricMode.PERCENT_INLINE),
+            ),
+        )
+        val snap = QuotaRules.parseDom(cfg, scan)
+        assertNotNull(snap)
+        val s = snap!!
+        assertEquals(3, s.items.size)
+        assertEquals(89.0, s.items.first { it.label == "Monthly" }.percent!!, 0.01)
+        assertEquals(39.0, s.items.first { it.label == "5-hour window" }.percent!!, 0.01)
+        assertEquals(59.0, s.items.first { it.label == "Weekly" }.percent!!, 0.01)
+    }
+
+    @Test
+    fun `diagnostics report matched line and value`() {
+        val cfg = config("opencode")
+        val diag = QuotaRules.diagnose(cfg, openCodeQuotaScan)
+        assertEquals(3, diag.size)
+        diag.forEach { d ->
+            assertTrue(d.matchedIndex >= 0)
+            assertNotNull(d.value)
+        }
+        assertEquals("29%", diag.first { it.label == "5-hour window" }.value)
+    }
+
+    @Test
+    fun `detector does not treat subtitle as reset countdown`() {
+        val scan = """
+            {"url":"https://opencode.ai/console","title":"","hasPassword":false,"loginLike":false,"bars":[],
+             "lines":["Limits","When your Go usage resets","5-hour window","39% used","Weekly","59% used"]}
+        """.trimIndent()
+        val found = QuotaAutoDetector.detect(scan)
+        val five = found.firstOrNull { it.label == "5-hour window" }
+        assertNotNull(five)
+        // “When your Go usage resets”不含数字，不能作为重置倒计时
+        assertNull(five!!.resetHint)
+    }
+
+    @Test
+    fun `short page lines do not masquerade as metric labels`() {
+        // 页面顶部有 "-"、"5-hour" 等短行，旧版 labelsMatch 反向包含会把它们
+        // 误判成 5-hour window，从而取到顶部的 89%。
+        val scan = """
+            {"url":"https://opencode.ai/console","title":"","hasPassword":false,"loginLike":false,"bars":[],
+             "lines":["-","5-hour","89% used",
+                      "Limits","When your Go usage resets",
+                      "5-hour window","Resets in 2h 15m","39% used",
+                      "Weekly","Resets in 5d 8h","59% used",
+                      "Monthly","Renews Dec 9","89% used"]}
+        """.trimIndent()
+        val snap = QuotaRules.parseDom(config("opencode"), scan)
+        assertNotNull(snap)
+        val s = snap!!
+        assertEquals(39.0, s.items.first { it.label == "5-hour window" }.percent!!, 0.01)
+        assertEquals(59.0, s.items.first { it.label == "Weekly" }.percent!!, 0.01)
+        assertEquals(89.0, s.items.first { it.label == "Monthly" }.percent!!, 0.01)
+    }
+
+    @Test
+    fun `prefers candidate without heading between label and value`() {
+        // 同名标签出现在图例处（其后隔着未配置标题 My usage 才有 89%），
+        // 真正的区块在后面（39%），应选真正区块。
+        val scan = """
+            {"url":"https://opencode.ai/console","title":"","hasPassword":false,"loginLike":false,"bars":[],
+             "lines":["5-hour window","My usage","89% used",
+                      "5-hour window","Resets in 2h 15m","39% used",
+                      "Weekly","59% used"]}
+        """.trimIndent()
+        val cfg = config("opencode").copy(
+            metrics = listOf(
+                MetricRule(label = "5-hour window", mode = MetricMode.PERCENT_INLINE),
+                MetricRule(label = "Weekly", mode = MetricMode.PERCENT_INLINE),
+            ),
+        )
+        val snap = QuotaRules.parseDom(cfg, scan)
+        assertNotNull(snap)
+        assertEquals(39.0, snap!!.items.first { it.label == "5-hour window" }.percent!!, 0.01)
+    }
+
+    @Test
+    fun `template matching by host inherits advanced rules`() {
+        val template = PlatformStore.matchTemplate(defaults(), "https://opencode.ai/console/")
+        assertNotNull(template)
+        assertNotNull(template!!.planNameRegex)
+        assertNotNull(template.pageMarkerRegex)
+        val volc = PlatformStore.matchTemplate(defaults(), "https://console.volcengine.com/ark/region:cn-beijing/subscription/coding-plan")
+        assertNotNull(volc)
+        assertEquals("剩余时间", volc!!.remainKey)
+        assertNull(PlatformStore.matchTemplate(defaults(), "https://unknown.example.com/usage"))
     }
 
     @Test

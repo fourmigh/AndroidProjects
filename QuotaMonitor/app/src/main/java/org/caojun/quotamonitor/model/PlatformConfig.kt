@@ -71,3 +71,18 @@ data class DetectedMetric(
     val sampleText: String,
     val resetHint: String? = null,
 )
+
+/**
+ * 解析诊断：某条指标规则在最近一次页面扫描中的匹配情况。
+ */
+data class RuleDiagnostic(
+    val label: String,
+    /** -1 表示未匹配到任何行 */
+    val matchedIndex: Int,
+    val matchedLine: String?,
+    /** 指标附近的文本窗口（已被下一个指标行截断） */
+    val window: List<String> = emptyList(),
+    /** 实际取到的值（如 "29%"、"300 / 900"），null 表示未取到 */
+    val value: String? = null,
+    val resetHint: String? = null,
+)

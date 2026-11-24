@@ -5,6 +5,7 @@ import org.caojun.quotamonitor.model.MetricRule
 import org.caojun.quotamonitor.model.PlatformConfig
 import org.caojun.quotamonitor.model.QuotaItem
 import org.caojun.quotamonitor.model.QuotaSnapshot
+import org.caojun.quotamonitor.model.RuleDiagnostic
 import org.caojun.quotamonitor.model.Source
 import org.json.JSONArray
 import org.json.JSONObject
@@ -39,7 +40,9 @@ object QuotaRules {
 
         val items = LinkedHashMap<String, QuotaItem>()
         for (rule in config.metrics) {
-            val item = extractMetric(rule, lines) ?: continue
+            // 防御：指标名若是重置倒计时（历史误配置），直接忽略
+            if (isResetLikeLabel(rule.label)) continue
+            val item = extractMetric(config, rule, lines) ?: continue
             items.putIfAbsent(item.label, item)
         }
 
@@ -85,12 +88,91 @@ object QuotaRules {
         )
     }
 
-    private fun extractMetric(rule: MetricRule, lines: List<String>): QuotaItem? {
+    private fun extractMetric(config: PlatformConfig, rule: MetricRule, lines: List<String>): QuotaItem? =
+        bestCandidate(config, rule, lines)?.item
+
+    private class Candidate(
+        val idx: Int,
+        val item: QuotaItem,
+        val valueOffset: Int,
+        val clean: Boolean,
+    )
+
+    /**
+     * 在指标名的所有出现位置中挑最佳候选：
+     * 优先「指标行到数值行之间没有其他标题行」的候选，再取距离数值最近的候选。
+     */
+    private fun bestCandidate(
+        config: PlatformConfig,
+        rule: MetricRule,
+        lines: List<String>,
+    ): Candidate? {
         if (rule.label.isBlank()) return null
-        val idx = lines.indexOfFirst { labelsMatch(rule.label, it) && it.length <= 100 }
-        if (idx < 0) return null
-        val windowEnd = minOf(idx + 1 + rule.lookAhead, lines.size)
-        val window = lines.subList(idx, windowEnd)
+        val indexes = lines.indices.filter { i ->
+            lines[i].length <= 100 && labelsMatch(rule.label, lines[i])
+        }
+        var bestClean: Candidate? = null
+        var bestAny: Candidate? = null
+        for (idx in indexes) {
+            val window = metricWindow(config, rule, lines, idx)
+            val result = extractFromWindow(rule, window) ?: continue
+            val offset = result.valueOffset
+            val hasHeadingBetween = (1 until offset).any { k -> isHeadingLike(window[k]) }
+            val candidate = Candidate(idx, result.item, offset, !hasHeadingBetween)
+            if (bestAny == null || offset < bestAny.valueOffset) bestAny = candidate
+            if (candidate.clean && (bestClean == null || offset < bestClean.valueOffset)) {
+                bestClean = candidate
+            }
+        }
+        return bestClean ?: bestAny
+    }
+
+    /**
+     * “标题样式”行：无数字、不是重置倒计时、长度较短（如 `My usage`、`Limits`、`套餐用量限额`）。
+     * 指标行与数值行之间若隔着这类行，说明该匹配位置很可能是图例或分组标题。
+     */
+    private fun isHeadingLike(line: String): Boolean {
+        val t = line.trim()
+        if (t.isEmpty() || t.length > 40) return false
+        if (t.any { it.isDigit() }) return false
+        if (t.contains('%')) return false
+        val lower = t.lowercase()
+        if (RESET_KEYWORDS.any { lower.contains(it) }) return false
+        return true
+    }
+
+    private val RESET_KEYWORDS = listOf(
+        "reset", "renew", "expires", "到期", "重置", "resets in",
+    )
+
+    /**
+     * 指标附近的文本窗口：从指标行开始，最多向下 [MetricRule.lookAhead] 行，
+     * 但一旦遇到**其他已配置指标**的行就截断，避免跨区块取到别的指标的值。
+     */
+    private fun metricWindow(
+        config: PlatformConfig,
+        rule: MetricRule,
+        lines: List<String>,
+        idx: Int,
+    ): List<String> {
+        val maxEnd = minOf(idx + 1 + rule.lookAhead, lines.size)
+        var end = maxEnd
+        for (j in idx + 1 until maxEnd) {
+            val line = lines[j]
+            val isOtherMetric = config.metrics.any { other ->
+                !other.label.equals(rule.label, ignoreCase = true) && labelsMatch(other.label, line)
+            }
+            if (isOtherMetric) {
+                end = j
+                break
+            }
+        }
+        return lines.subList(idx, end)
+    }
+
+    private data class WindowResult(val item: QuotaItem, val valueOffset: Int)
+
+    private fun extractFromWindow(rule: MetricRule, window: List<String>): WindowResult? {
         val windowText = window.joinToString("\n")
         val reset = rule.resetRegex?.takeIf { it.isNotBlank() }
             ?.let { runCatching { Regex(it) }.getOrNull() }
@@ -104,11 +186,14 @@ object QuotaRules {
                 val m = regex.find(windowText) ?: return null
                 val raw = m.groupValues.getOrNull(1)?.takeIf { it.isNotBlank() }
                 val value = raw?.toDoubleOrNull() ?: m.value.toDoubleOrNull() ?: return null
-                QuotaItem(
-                    label = rule.label,
-                    percent = value.coerceIn(0.0, 100.0),
-                    resetHint = reset,
-                    percentText = raw,
+                WindowResult(
+                    item = QuotaItem(
+                        label = rule.label,
+                        percent = value.coerceIn(0.0, 100.0),
+                        resetHint = reset,
+                        percentText = raw,
+                    ),
+                    valueOffset = lineOffsetOf(windowText, m.range.first),
                 )
             }
 
@@ -117,17 +202,24 @@ object QuotaRules {
                     ?.let { runCatching { Regex(it) }.getOrNull() }
                     ?: Regex("""^\s*(\d+(?:\.\d+)?)\s*%?\s*$""")
                 var raw: String? = null
-                for (line in window.drop(1)) {
+                var offset = -1
+                for ((i, line) in window.drop(1).withIndex()) {
                     val m = regex.matchEntire(line) ?: continue
                     raw = m.groupValues.getOrNull(1)?.takeIf { it.isNotBlank() }
-                    if (raw != null) break
+                    if (raw != null) {
+                        offset = i + 1
+                        break
+                    }
                 }
                 val value = raw?.toDoubleOrNull() ?: return null
-                QuotaItem(
-                    label = rule.label,
-                    percent = value.coerceIn(0.0, 100.0),
-                    resetHint = reset,
-                    percentText = raw,
+                WindowResult(
+                    item = QuotaItem(
+                        label = rule.label,
+                        percent = value.coerceIn(0.0, 100.0),
+                        resetHint = reset,
+                        percentText = raw,
+                    ),
+                    valueOffset = offset,
                 )
             }
 
@@ -139,8 +231,55 @@ object QuotaRules {
                 val used = parseNumber(m.groupValues.getOrNull(1) ?: return null) ?: return null
                 val total = parseNumber(m.groupValues.getOrNull(2) ?: return null) ?: return null
                 if (total <= 0) return null
-                QuotaItem(label = rule.label, used = used, total = total, resetHint = reset)
+                WindowResult(
+                    item = QuotaItem(label = rule.label, used = used, total = total, resetHint = reset),
+                    valueOffset = lineOffsetOf(windowText, m.range.first),
+                )
             }
+        }
+    }
+
+    /** 字符偏移 → 行偏移（0 = 指标行本身）。 */
+    private fun lineOffsetOf(windowText: String, charIndex: Int): Int {
+        if (charIndex <= 0) return 0
+        return windowText.substring(0, charIndex).count { it == '\n' }
+    }
+
+    /**
+     * 解析诊断：对每条指标规则给出「匹配到的行、窗口、取值」，
+     * 便于用户排查规则是否取错数据。
+     */
+    fun diagnose(config: PlatformConfig, scanJson: String): List<RuleDiagnostic> {
+        val scan = runCatching { JSONObject(scanJson) }.getOrNull() ?: return emptyList()
+        val lines = parseLines(scan)
+        return config.metrics.map { rule ->
+            val best = bestCandidate(config, rule, lines)
+            if (best == null) {
+                RuleDiagnostic(label = rule.label, matchedIndex = -1, matchedLine = null, window = emptyList())
+            } else {
+                RuleDiagnostic(
+                    label = rule.label,
+                    matchedIndex = best.idx,
+                    matchedLine = lines[best.idx],
+                    window = metricWindow(config, rule, lines, best.idx),
+                    value = diagValueText(best.item),
+                    resetHint = best.item.resetHint,
+                )
+            }
+        }
+    }
+
+    private fun diagValueText(item: QuotaItem): String = when {
+        item.percent != null -> (item.percentText ?: item.percent.toString()) + "%"
+        item.used != null && item.total != null -> "${item.used} / ${item.total}"
+        item.used != null -> item.used.toString()
+        else -> "—"
+    }
+
+    private fun parseLines(scan: JSONObject): List<String> = buildList {
+        val arr = scan.optJSONArray("lines") ?: JSONArray()
+        for (i in 0 until arr.length()) {
+            arr.optString(i).takeIf { it.isNotBlank() }?.let { add(it) }
         }
     }
 
@@ -156,6 +295,17 @@ object QuotaRules {
         }
         return null
     }
+
+    /** 是否像“重置倒计时”而不是指标名（用于拒绝历史误配置）。 */
+    private fun isResetLikeLabel(label: String): Boolean {
+        val l = label.trim()
+        if (l.isEmpty()) return true
+        return RESET_LABEL_REGEX.containsMatchIn(l)
+    }
+
+    private val RESET_LABEL_REGEX = Regex(
+        """(?i)(后重置|重置|resets?\s+in|renew|expires?)\s*$""",
+    )
 
     /** 取 "剩余时间/结束时间" 字段值：同行或下一行。 */
     private fun infoValue(lines: List<String>, key: String?): String? {
@@ -274,9 +424,11 @@ object QuotaRules {
 
     private fun labelsMatch(ruleLabel: String, text: String): Boolean {
         if (ruleLabel.isBlank() || text.isBlank()) return false
+        // 必须是页面行包含指标名；绝不反向包含，
+        // 否则页面上的短符号（"-"、"5"、"in" 等）会被误判成指标行。
         val a = ruleLabel.replace(" ", "").lowercase()
         val b = text.replace(" ", "").lowercase()
-        return b.contains(a) || a.contains(b)
+        return b.contains(a)
     }
 
     /** DOM 精准数据优先，网络数据仅补充已知指标的项。 */

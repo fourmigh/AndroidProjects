@@ -30,6 +30,7 @@ private sealed interface Screen {
     data object Settings : Screen
     data class Edit(val configId: String?) : Screen
     data class Console(val configId: String) : Screen
+    data class Recognize(val configId: String) : Screen
     data object Wizard : Screen
 }
 
@@ -97,6 +98,18 @@ private fun AppRoot(controller: QuotaController) {
                     controller = controller,
                     configId = current.configId,
                     onBack = { screen = Screen.Settings },
+                    onRecognize = { screen = Screen.Recognize(it) },
+                    onToast = { toast(it) },
+                )
+            }
+
+            is Screen.Recognize -> {
+                BackHandler { screen = Screen.Edit(current.configId) }
+                AddPlatformWizardScreen(
+                    controller = controller,
+                    editingConfigId = current.configId,
+                    onBack = { screen = Screen.Edit(current.configId) },
+                    onSaved = { screen = Screen.Edit(current.configId) },
                     onToast = { toast(it) },
                 )
             }

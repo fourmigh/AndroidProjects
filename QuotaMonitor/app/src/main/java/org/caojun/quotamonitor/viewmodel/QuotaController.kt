@@ -55,6 +55,9 @@ class QuotaController(private val context: Context) {
     /** 提取状态（key = config.id） */
     val states: SnapshotStateMap<String, PlatformState> = mutableStateMapOf()
 
+    /** 页面标题（key = config.id），用于自动推导平台名称 */
+    val pageTitles: SnapshotStateMap<String, String> = mutableStateMapOf()
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val webViews = mutableMapOf<String, WebView>()
     private val sessions = mutableMapOf<String, Session>()
@@ -69,8 +72,8 @@ class QuotaController(private val context: Context) {
     /** 配置向导使用的临时平台（不落盘）。 */
     private var draftConfig: PlatformConfig? = null
 
-    /** 最近一次 DOM 扫描原始 JSON（供自动识别使用）。 */
-    private var lastScanJson: String? = null
+    /** 各平台最近一次 DOM 扫描原始 JSON（供自动识别使用，key = config.id）。 */
+    private val scanJsons = mutableMapOf<String, String>()
 
     /** 一次刷新周期内累积的提取上下文。 */
     private class Session(
@@ -207,6 +210,9 @@ class QuotaController(private val context: Context) {
 
     fun newConfigId(): String = store.newId()
 
+    /** 按 URL 查找内置模板（自动识别保存时继承高级规则）。 */
+    fun templateForUrl(url: String): PlatformConfig? = store.templateForUrl(url)
+
     /** 供界面获取本地化字符串（Toast 等非 Composable 场景）。 */
     fun text(resId: Int, vararg args: Any): String = context.getString(resId, *args)
 
@@ -227,11 +233,25 @@ class QuotaController(private val context: Context) {
 
     fun closeDraft() {
         draftConfig = null
-        lastScanJson = null
+        scanJsons.remove(DRAFT_ID)
+        pageTitles.remove(DRAFT_ID)
         teardown(DRAFT_ID)
     }
 
-    fun draftScanJson(): String? = lastScanJson
+    /** 某平台最近一次扫描结果（自动识别输入）。 */
+    fun scanJson(id: String): String? = scanJsons[id]
+
+    /** 解析诊断：显示每条指标规则最近一次匹配到的行、窗口与取值。 */
+    fun diagnose(id: String): List<org.caojun.quotamonitor.model.RuleDiagnostic> {
+        val config = findConfig(id) ?: return emptyList()
+        val scan = scanJson(id) ?: return emptyList()
+        return QuotaRules.diagnose(config, scan)
+    }
+
+    fun draftScanJson(): String? = scanJson(DRAFT_ID)
+
+    /** 某平台最近一次加载到的网页标题。 */
+    fun pageTitle(id: String): String? = pageTitles[id]
 
     // ------------------------------------------------------------ 刷新 / 提取
 
@@ -300,6 +320,8 @@ class QuotaController(private val context: Context) {
     /** 销毁某平台的 WebView / session（配置变更或删除时）。 */
     private fun teardown(id: String, dropState: Boolean = false) {
         sessions.remove(id)
+        pageTitles.remove(id)
+        scanJsons.remove(id)
         webViews.remove(id)?.let { wv ->
             (wv.parent as? ViewGroup)?.removeView(wv)
             wv.destroy()
@@ -430,7 +452,10 @@ class QuotaController(private val context: Context) {
             s.scanLoginLike = obj.optBoolean("loginLike", false)
             s.scanUrl = obj.optString("url", "")
             s.scanJson = json
-            lastScanJson = json
+            scanJsons[id] = json
+            obj.optString("title", "").takeIf { it.isNotBlank() }?.let { title ->
+                pageTitles[id] = title
+            }
             val rawLines = buildList {
                 val arr = obj.optJSONArray("lines")
                 if (arr != null) {

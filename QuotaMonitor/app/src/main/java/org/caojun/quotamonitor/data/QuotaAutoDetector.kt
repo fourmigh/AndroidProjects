@@ -66,13 +66,22 @@ object QuotaAutoDetector {
         for ((i, line) in lines.withIndex()) {
             if (!isLabelLine(line)) continue
             val label = cleanLabel(line) ?: continue
-            val valueLine = (i + 1..minOf(i + 3, lines.lastIndex)).firstOrNull { j ->
-                PURE_NUMBER.matches(lines[j])
-            } ?: continue
+            // 值行必须在 label 之后 1~2 行内；若中间又出现指标名行，
+            // 说明当前行是分组标题（如“套餐用量限额”），跳过。
+            var valueLine = -1
+            for (j in i + 1..minOf(i + 2, lines.lastIndex)) {
+                val candidate = lines[j]
+                if (isLabelLine(candidate)) break
+                if (PURE_NUMBER.matches(candidate)) {
+                    valueLine = j
+                    break
+                }
+            }
+            if (valueLine < 0) continue
             val m = PURE_NUMBER.find(lines[valueLine]) ?: continue
             val raw = m.groupValues[1]
             if (looksLikeDate(lines[valueLine])) continue
-            val hint = resetNearby(lines, i)
+            val hint = resetNearby(lines, i, preferBackward = false)
             out.putIfAbsent(
                 label,
                 DetectedMetric(
@@ -158,37 +167,42 @@ object QuotaAutoDetector {
         return null
     }
 
-    /** 是否像“指标名”行：含字母或汉字、不是日期/纯数字/噪声词。 */
+    /** 是否像“指标名”行：含字母或汉字、不是日期/纯数字/重置倒计时/噪声词。 */
     private fun isLabelLine(line: String): Boolean {
         val label = cleanLabel(line) ?: return false
         if (label.length !in 2..40) return false
         if (isNoiseLabel(label)) return false
         if (looksLikeDate(line)) return false
+        // 重置倒计时行（如“5天8小时后重置”）不是指标名
+        if (hasResetKeyword(line)) return false
         if (!label.any { it.isLetter() }) return false
         return true
     }
 
-    /** 重置倒计时通常位于指标名下方或百分比上方：先向上找，再向下找。 */
-    private fun resetNearby(lines: List<String>, index: Int): String? {
-        for (j in index - 1 downTo maxOf(0, index - 3)) {
-            val line = lines[j]
-            if (RESET_KEYWORDS.any { line.contains(it, ignoreCase = true) } && line.length <= 80) {
-                return line
-            }
+    private fun hasResetKeyword(line: String): Boolean =
+        RESET_KEYWORDS.any { line.contains(it, ignoreCase = true) } ||
+            Regex("""^\s*\d.*后重置\s*$""").matches(line)
+
+    /** 重置倒计时通常位于指标名下方或百分比上方：按调用方偏好方向查找。
+     *  注意：只接受包含数字的行（“When your Go usage resets”这类句子不是倒计时）。 */
+    private fun resetNearby(lines: List<String>, index: Int, preferBackward: Boolean = true): String? {
+        val backward = (index - 1 downTo maxOf(0, index - 3)).map { lines[it] }
+        val forward = (index + 1..minOf(index + 5, lines.lastIndex)).map { lines[it] }
+        val candidates = if (preferBackward) backward + forward else forward + backward
+        return candidates.firstOrNull { line ->
+            line.length <= 80 &&
+                line.any { it.isDigit() } &&
+                RESET_KEYWORDS.any { line.contains(it, ignoreCase = true) }
         }
-        for (j in index + 1..minOf(index + 5, lines.lastIndex)) {
-            val line = lines[j]
-            if (RESET_KEYWORDS.any { line.contains(it, ignoreCase = true) } && line.length <= 80) {
-                return line
-            }
-        }
-        return null
     }
 
     private fun extractResetText(line: String): String? {
         val idx = resetKeywordIndex(line)
         if (idx <= 0) return null
-        return line.substring(idx).trim().takeIf { it.length <= 80 }
+        val text = line.substring(idx).trim()
+        if (text.length > 80) return null
+        if (text.none { it.isDigit() }) return null
+        return text
     }
 
     private fun resetKeywordIndex(text: String): Int {

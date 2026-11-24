@@ -68,6 +68,7 @@ fun PlatformEditScreen(
     controller: QuotaController,
     configId: String?,
     onBack: () -> Unit,
+    onRecognize: (String) -> Unit,
     onToast: (String) -> Unit,
 ) {
     val existing = configId?.let { controller.findConfig(it) }
@@ -82,6 +83,7 @@ fun PlatformEditScreen(
     var loginKeywords by remember { mutableStateOf(existing?.loginKeywords?.joinToString(", ") ?: "") }
     var marketingKeywords by remember { mutableStateOf(existing?.marketingKeywords?.joinToString(", ") ?: "") }
     var advanced by remember { mutableStateOf(false) }
+    var showDiagnostics by remember { mutableStateOf(false) }
 
     val metrics = remember {
         mutableStateListOf<MetricDraft>().apply {
@@ -126,6 +128,14 @@ fun PlatformEditScreen(
                     }
                 },
                 actions = {
+                    existing?.let { config ->
+                        TextButton(onClick = { showDiagnostics = true }) {
+                            Text(stringResource(R.string.action_diagnostics), color = Muted)
+                        }
+                        TextButton(onClick = { onRecognize(config.id) }) {
+                            Text(stringResource(R.string.action_recognize), color = Muted)
+                        }
+                    }
                     TextButton(onClick = {
                         val rules = metrics.mapNotNull { draft ->
                             draft.label.trim().takeIf { it.isNotEmpty() }?.let { label ->
@@ -297,6 +307,61 @@ fun PlatformEditScreen(
             }
             Spacer(Modifier.height(24.dp))
         }
+    }
+
+    if (showDiagnostics && existing != null) {
+        val diagnostics = controller.diagnose(existing.id)
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showDiagnostics = false },
+            title = { Text(stringResource(R.string.diagnostics_title)) },
+            text = {
+                if (diagnostics.isEmpty()) {
+                    Text(stringResource(R.string.diagnostics_empty))
+                } else {
+                    Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                        diagnostics.forEach { diag ->
+                            Text(
+                                stringResource(R.string.diagnostics_rule) + "： " + diag.label,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Accent,
+                            )
+                            Text(
+                                if (diag.matchedIndex < 0) {
+                                    stringResource(R.string.diagnostics_unmatched)
+                                } else {
+                                    stringResource(R.string.diagnostics_matched, diag.matchedIndex + 1) +
+                                        "： " + (diag.matchedLine ?: "")
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Muted,
+                                fontSize = 11.sp,
+                            )
+                            if (diag.window.isNotEmpty()) {
+                                Text(
+                                    stringResource(R.string.diagnostics_window) + "： " + diag.window.joinToString(" ⏎ "),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Muted,
+                                    fontSize = 11.sp,
+                                )
+                            }
+                            Text(
+                                diag.value?.let { stringResource(R.string.diagnostics_value, it) }
+                                    ?: stringResource(R.string.diagnostics_undetected),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Ink,
+                                fontSize = 11.sp,
+                            )
+                            Spacer(Modifier.height(8.dp))
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showDiagnostics = false }) {
+                    Text(stringResource(R.string.action_close))
+                }
+            },
+        )
     }
 }
 
