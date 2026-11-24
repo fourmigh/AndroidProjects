@@ -1,0 +1,77 @@
+{
+  "version": 1,
+  "platforms": [
+    {
+      "id": "opencode",
+      "name": "OpenCode Console",
+      "url": "https://opencode.ai/console",
+      "enabled": true,
+      "loginKeywords": ["sign in", "log in"],
+      "marketingKeywords": ["get started", "cheapest inference", "monthly subscription packages"],
+      "pageMarkerRegex": "(\\d+(?:\\.\\d+)?)\\s*%\\s*used",
+      "planNameRegex": "(?i)when\\s+your\\s+(.+?)\\s+usage\\s+resets",
+      "planLineRegex": null,
+      "remainKey": null,
+      "endKey": null,
+      "metrics": [
+        {
+          "label": "5-hour window",
+          "mode": "percent_inline",
+          "valueRegex": "(\\d+(?:\\.\\d+)?)\\s*%\\s*used",
+          "resetRegex": "(?i)resets?\\s+in\\s+\\S[^,;.\\n]*",
+          "lookAhead": 4
+        },
+        {
+          "label": "Weekly",
+          "mode": "percent_inline",
+          "valueRegex": "(\\d+(?:\\.\\d+)?)\\s*%\\s*used",
+          "resetRegex": "(?i)resets?\\s+in\\s+\\S[^,;.\\n]*",
+          "lookAhead": 4
+        },
+        {
+          "label": "Monthly",
+          "mode": "percent_inline",
+          "valueRegex": "(\\d+(?:\\.\\d+)?)\\s*%\\s*used",
+          "resetRegex": "(?i)resets?\\s+in\\s+\\S[^,;.\\n]*",
+          "lookAhead": 4
+        }
+      ]
+    },
+    {
+      "id": "volc",
+      "name": "火山方舟 Coding Plan",
+      "url": "https://console.volcengine.com/ark/region:cn-beijing/subscription/coding-plan",
+      "enabled": true,
+      "loginKeywords": ["登录", "sign in"],
+      "marketingKeywords": [],
+      "pageMarkerRegex": null,
+      "planNameRegex": null,
+      "planLineRegex": "Coding\\s*Plan\\s*\\S*\\s*套餐",
+      "remainKey": "剩余时间",
+      "endKey": "结束时间",
+      "metrics": [
+        {
+          "label": "近5小时用量",
+          "mode": "percent_next_number",
+          "valueRegex": null,
+          "resetRegex": "\\d[^ \\n]*重置",
+          "lookAhead": 8
+        },
+        {
+          "label": "近一周用量",
+          "mode": "percent_next_number",
+          "valueRegex": null,
+          "resetRegex": "\\d[^ \\n]*重置",
+          "lookAhead": 8
+        },
+        {
+          "label": "近一月用量",
+          "mode": "percent_next_number",
+          "valueRegex": null,
+          "resetRegex": "\\d[^ \\n]*重置",
+          "lookAhead": 8
+        }
+      ]
+    }
+  ]
+}

@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -24,12 +23,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import org.caojun.quotamonitor.R
-import org.caojun.quotamonitor.model.Platform
 import org.caojun.quotamonitor.model.SyncStatus
 import org.caojun.quotamonitor.viewmodel.QuotaController
 import org.caojun.quotamonitor.ui.theme.Accent
@@ -46,15 +44,16 @@ import org.caojun.quotamonitor.ui.theme.Paper
 @Composable
 fun ConsoleWebScreen(
     controller: QuotaController,
-    platform: Platform,
+    configId: String,
     onBack: () -> Unit,
 ) {
     BackHandler(onBack = onBack)
 
-    val st = controller.states[platform]
+    val config = controller.findConfig(configId)
+    val st = controller.states[configId]
     val loading = st?.status == SyncStatus.LOADING
-    var uaDesktop by remember(platform) { mutableStateOf(controller.isDesktopUa(platform)) }
-    val title = stringResource(platform.titleRes)
+    var uaDesktop by remember(configId) { mutableStateOf(controller.isDesktopUa(configId)) }
+    val title = config?.name ?: ""
 
     Scaffold(
         containerColor = Paper,
@@ -88,13 +87,13 @@ fun ConsoleWebScreen(
                         }
                     },
                     actions = {
-                        TextButton(onClick = { controller.refresh(platform) }) {
+                        TextButton(onClick = { controller.refresh(configId) }) {
                             Text(stringResource(R.string.action_refresh), color = Accent)
                         }
                         TextButton(
                             onClick = {
                                 uaDesktop = !uaDesktop
-                                controller.toggleDesktopUa(platform)
+                                controller.toggleDesktopUa(configId)
                             },
                         ) {
                             Text(
@@ -131,10 +130,10 @@ fun ConsoleWebScreen(
                 android.widget.FrameLayout(context)
             },
             update = { container ->
-                controller.attachForDisplay(platform, container as ViewGroup)
+                controller.attachForDisplay(configId, container as ViewGroup)
             },
             onRelease = { container ->
-                controller.detachFromDisplay(platform, container as ViewGroup)
+                controller.detachFromDisplay(configId, container as ViewGroup)
             },
         )
     }

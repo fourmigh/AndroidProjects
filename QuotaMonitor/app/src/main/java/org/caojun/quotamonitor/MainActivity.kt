@@ -1,7 +1,10 @@
 package org.caojun.quotamonitor
 
+import android.content.Context
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Box
@@ -11,14 +14,24 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import org.caojun.quotamonitor.model.Platform
+import androidx.compose.ui.platform.LocalContext
+import org.caojun.quotamonitor.ui.AddPlatformWizardScreen
 import org.caojun.quotamonitor.ui.ConsoleWebScreen
 import org.caojun.quotamonitor.ui.DashboardScreen
+import org.caojun.quotamonitor.ui.PlatformEditScreen
+import org.caojun.quotamonitor.ui.SettingsScreen
 import org.caojun.quotamonitor.ui.theme.QuotaTheme
 import org.caojun.quotamonitor.viewmodel.QuotaController
+
+private sealed interface Screen {
+    data object Dashboard : Screen
+    data object Settings : Screen
+    data class Edit(val configId: String?) : Screen
+    data class Console(val configId: String) : Screen
+    data object Wizard : Screen
+}
 
 class MainActivity : ComponentActivity() {
 
@@ -48,23 +61,64 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun AppRoot(controller: QuotaController) {
-    var consolePlatform by rememberSaveable { mutableStateOf<Platform?>(null) }
+    var screen by remember { mutableStateOf<Screen>(Screen.Dashboard) }
+    val context = LocalContext.current
 
-    // 首帧后开始静默刷新。
+    fun toast(message: String) {
+        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+    }
+
     LaunchedEffect(Unit) { controller.start() }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        DashboardScreen(
-            controller = controller,
-            onOpenConsole = { consolePlatform = it },
-        )
+        when (val current = screen) {
+            Screen.Dashboard -> {
+                DashboardScreen(
+                    controller = controller,
+                    onOpenConsole = { screen = Screen.Console(it) },
+                    onOpenSettings = { screen = Screen.Settings },
+                )
+            }
 
-        consolePlatform?.let { platform ->
-            ConsoleWebScreen(
-                controller = controller,
-                platform = platform,
-                onBack = { consolePlatform = null },
-            )
+            Screen.Settings -> {
+                BackHandler { screen = Screen.Dashboard }
+                SettingsScreen(
+                    controller = controller,
+                    onBack = { screen = Screen.Dashboard },
+                    onAdd = { screen = Screen.Wizard },
+                    onEdit = { screen = Screen.Edit(it) },
+                    onToast = { toast(it) },
+                )
+            }
+
+            is Screen.Edit -> {
+                BackHandler { screen = Screen.Settings }
+                PlatformEditScreen(
+                    controller = controller,
+                    configId = current.configId,
+                    onBack = { screen = Screen.Settings },
+                    onToast = { toast(it) },
+                )
+            }
+
+            is Screen.Console -> {
+                BackHandler { screen = Screen.Dashboard }
+                ConsoleWebScreen(
+                    controller = controller,
+                    configId = current.configId,
+                    onBack = { screen = Screen.Dashboard },
+                )
+            }
+
+            Screen.Wizard -> {
+                BackHandler { screen = Screen.Settings }
+                AddPlatformWizardScreen(
+                    controller = controller,
+                    onBack = { screen = Screen.Settings },
+                    onSaved = { screen = Screen.Settings },
+                    onToast = { toast(it) },
+                )
+            }
         }
     }
 }

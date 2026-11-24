@@ -1,7 +1,6 @@
 package org.caojun.quotamonitor.data
 
 import android.content.Context
-import org.caojun.quotamonitor.model.Platform
 import org.caojun.quotamonitor.model.QuotaItem
 import org.caojun.quotamonitor.model.QuotaSnapshot
 import org.caojun.quotamonitor.model.Source
@@ -9,13 +8,13 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * SharedPreferences 缓存：打开 App 秒开展示上次抓到的额度快照。
+ * SharedPreferences 缓存：key 为平台配置 id，打开 App 秒开展示上次快照。
  */
 object QuotaCache {
 
-    private const val PREFS = "quota_cache_v3"
+    private const val PREFS = "quota_cache_v4"
 
-    fun save(context: Context, platform: Platform, snapshot: QuotaSnapshot) {
+    fun save(context: Context, configId: String, snapshot: QuotaSnapshot) {
         val json = JSONObject().apply {
             put("planName", snapshot.planName ?: JSONObject.NULL)
             put("remainText", snapshot.remainText ?: JSONObject.NULL)
@@ -41,11 +40,11 @@ object QuotaCache {
             )
             put("lines", JSONArray(snapshot.lines))
         }
-        prefs(context).edit().putString(platform.name, json.toString()).apply()
+        prefs(context).edit().putString(configId, json.toString()).apply()
     }
 
-    fun load(context: Context, platform: Platform): QuotaSnapshot? {
-        val raw = prefs(context).getString(platform.name, null) ?: return null
+    fun load(context: Context, configId: String): QuotaSnapshot? {
+        val raw = prefs(context).getString(configId, null) ?: return null
         return try {
             val json = JSONObject(raw)
             val items = buildList {
@@ -89,6 +88,10 @@ object QuotaCache {
         } catch (e: Exception) {
             null
         }
+    }
+
+    fun clear(context: Context, configId: String) {
+        prefs(context).edit().remove(configId).apply()
     }
 
     private fun JSONObject.optNullableDouble(key: String): Double? {

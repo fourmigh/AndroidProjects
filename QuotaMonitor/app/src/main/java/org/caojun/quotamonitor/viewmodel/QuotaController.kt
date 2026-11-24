@@ -13,7 +13,9 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.runtime.snapshots.SnapshotStateMap
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -23,32 +25,39 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.caojun.quotamonitor.R
 import org.caojun.quotamonitor.data.JsScripts
+import org.caojun.quotamonitor.data.PlatformStore
 import org.caojun.quotamonitor.data.QuotaCache
-import org.caojun.quotamonitor.data.QuotaParser
-import org.caojun.quotamonitor.model.Platform
+import org.caojun.quotamonitor.data.QuotaRules
+import org.caojun.quotamonitor.model.PlatformConfig
 import org.caojun.quotamonitor.model.PlatformState
 import org.caojun.quotamonitor.model.QuotaItem
 import org.caojun.quotamonitor.model.QuotaSnapshot
 import org.caojun.quotamonitor.model.SyncStatus
+import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * 核心控制器：为每个平台维护一个常驻 WebView（后台静默加载），
- * 通过「文档创建时注入的 fetch/XHR 钩子 + 加载完成后 DOM 扫描」双通道
- * 提取套餐限额数据，写入 [states] 供 Compose 界面消费。
+ * 核心控制器：按平台配置为每个平台维护一个常驻 WebView（后台静默加载），
+ * 通过「fetch/XHR 钩子 + DOM 扫描」两条通道提取额度数据。
  *
- * 界面打开控制台网页时，同一 WebView 会被重新挂到前台容器；
- * 关闭后移回 [bindHidden] 注册的隐藏容器继续待命。
+ * 平台完全由 [PlatformStore] 中的配置驱动，支持新增 / 编辑 / 删除，
+ * 无需修改代码即可适配新的 AI 套餐页面。
  *
  * 所有公开方法都必须在主线程调用。
  */
 class QuotaController(private val context: Context) {
 
-    val states: SnapshotStateMap<Platform, PlatformState> = mutableStateMapOf()
+    private val store = PlatformStore(context)
+
+    /** 全部平台配置（Compose 可观察） */
+    val configs: SnapshotStateList<PlatformConfig> = mutableStateListOf<PlatformConfig>()
+
+    /** 提取状态（key = config.id） */
+    val states: SnapshotStateMap<String, PlatformState> = mutableStateMapOf()
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-    private val webViews = mutableMapOf<Platform, WebView>()
-    private val sessions = mutableMapOf<Platform, Session>()
+    private val webViews = mutableMapOf<String, WebView>()
+    private val sessions = mutableMapOf<String, Session>()
     private var hiddenContainer: ViewGroup? = null
     private var started = false
 
@@ -56,6 +65,12 @@ class QuotaController(private val context: Context) {
     private val desktopUa =
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
             "(KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+
+    /** 配置向导使用的临时平台（不落盘）。 */
+    private var draftConfig: PlatformConfig? = null
+
+    /** 最近一次 DOM 扫描原始 JSON（供自动识别使用）。 */
+    private var lastScanJson: String? = null
 
     /** 一次刷新周期内累积的提取上下文。 */
     private class Session(
@@ -67,75 +82,203 @@ class QuotaController(private val context: Context) {
         var scanLoginLike: Boolean = false,
         var scanUrl: String = "",
         var scanLines: List<String> = emptyList(),
+        var scanJson: String = "",
         var scanAttempts: Int = 0,
     )
 
     init {
-        Platform.entries.forEach { platform ->
-            QuotaCache.load(context, platform)?.let { snapshot ->
-                states[platform] = PlatformState(status = SyncStatus.OK, snapshot = snapshot)
+        val loaded = store.loadAll()
+        configs.addAll(loaded)
+        loaded.forEach { config ->
+            QuotaCache.load(context, config.id)?.let { snapshot ->
+                states[config.id] = PlatformState(status = SyncStatus.OK, snapshot = snapshot)
             }
         }
     }
 
-    /** 首次进入界面时触发：两个平台并行静默刷新。 */
+    // ------------------------------------------------------------ 配置管理
+
+    fun findConfig(id: String): PlatformConfig? =
+        draftConfig?.takeIf { it.id == id } ?: configs.firstOrNull { it.id == id }
+
+    fun enabledConfigs(): List<PlatformConfig> = configs.filter { it.enabled }
+
     fun start() {
         if (started) return
         started = true
-        Platform.entries.forEach { refresh(it) }
+        enabledConfigs().forEach { refresh(it.id) }
     }
 
     fun refreshAll() {
-        Platform.entries.forEach { refresh(it) }
+        enabledConfigs().forEach { refresh(it.id) }
     }
 
-    /** 重新加载目标页面并开始新一轮提取。 */
-    fun refresh(platform: Platform) {
-        val wv = ensureWebView(platform)
-        val gen = (sessions[platform]?.gen ?: 0) + 1
-        sessions[platform] = Session(gen = gen)
-        val prev = states[platform] ?: PlatformState()
-        states[platform] = prev.copy(status = SyncStatus.LOADING, message = null, progress = 0)
+    /** 新增配置：校验通过则保存并立即刷新。返回错误类型或 null。 */
+    fun addConfig(config: PlatformConfig): PlatformStore.ValidationError? {
+        val err = PlatformStore.validate(config)
+        if (err != null) return err
+        configs.add(config)
+        store.saveAll(configs)
+        if (config.enabled) refresh(config.id)
+        return null
+    }
+
+    /** 更新配置：URL / 启用状态变化时重建 WebView。返回错误类型或 null。 */
+    fun updateConfig(config: PlatformConfig): PlatformStore.ValidationError? {
+        val err = PlatformStore.validate(config)
+        if (err != null) return err
+        val index = configs.indexOfFirst { it.id == config.id }
+        if (index < 0) return null
+        val old = configs[index]
+        configs[index] = config
+        store.saveAll(configs)
+        if (old.url != config.url || old.enabled != config.enabled) {
+            teardown(config.id, dropState = old.enabled != config.enabled && !config.enabled)
+            if (config.enabled) refresh(config.id)
+        }
+        return null
+    }
+
+    fun deleteConfig(id: String) {
+        teardown(id)
+        configs.removeAll { it.id == id }
+        states.remove(id)
+        QuotaCache.clear(context, id)
+        store.saveAll(configs)
+    }
+
+    fun setEnabled(id: String, enabled: Boolean) {
+        val index = configs.indexOfFirst { it.id == id }
+        if (index < 0) return
+        val config = configs[index]
+        if (config.enabled == enabled) return
+        configs[index] = config.copy(enabled = enabled)
+        store.saveAll(configs)
+        if (enabled) refresh(id) else teardown(id)
+    }
+
+    fun restoreDefaults() {
+        configs.forEach { teardown(it.id) }
+        states.clear()
+        val defaults = store.restoreDefaults()
+        configs.clear()
+        configs.addAll(defaults)
+        defaults.forEach { config ->
+            QuotaCache.load(context, config.id)?.let { snapshot ->
+                states[config.id] = PlatformState(status = SyncStatus.OK, snapshot = snapshot)
+            }
+        }
+        refreshAll()
+    }
+
+    fun exportJson(): String {
+        val json = JSONObject().apply {
+            put("version", 1)
+            put("platforms", JSONArray().apply {
+                configs.forEach { put(configToJson(it)) }
+            })
+        }
+        return json.toString(2)
+    }
+
+    /** 导入配置（替换当前全部配置）。返回导入的平台数，失败返回 -1。 */
+    fun importJson(text: String): Int {
+        val configsToImport = runCatching {
+            val root = JSONObject(text)
+            PlatformStore.parseConfigs(root.getJSONArray("platforms"))
+        }.getOrNull() ?: return -1
+        if (configsToImport.isEmpty()) return -1
+        for (config in configsToImport) {
+            if (PlatformStore.validate(config) != null) return -1
+        }
+        configs.forEach { teardown(it.id) }
+        states.clear()
+        configs.clear()
+        configs.addAll(configsToImport)
+        store.saveAll(configs)
+        configsToImport.forEach { config ->
+            QuotaCache.load(context, config.id)?.let { snapshot ->
+                states[config.id] = PlatformState(status = SyncStatus.OK, snapshot = snapshot)
+            }
+        }
+        refreshAll()
+        return configsToImport.size
+    }
+
+    fun newConfigId(): String = store.newId()
+
+    /** 供界面获取本地化字符串（Toast 等非 Composable 场景）。 */
+    fun text(resId: Int, vararg args: Any): String = context.getString(resId, *args)
+
+    // ------------------------------------------------------------ 配置向导（草稿）
+
+    fun draftId(): String = DRAFT_ID
+
+    /** 打开草稿页面（用于自动识别）。 */
+    fun openDraft(url: String, name: String) {
+        draftConfig = PlatformConfig(
+            id = DRAFT_ID,
+            name = name.ifBlank { url },
+            url = url,
+            metrics = emptyList(),
+        )
+        refresh(DRAFT_ID)
+    }
+
+    fun closeDraft() {
+        draftConfig = null
+        lastScanJson = null
+        teardown(DRAFT_ID)
+    }
+
+    fun draftScanJson(): String? = lastScanJson
+
+    // ------------------------------------------------------------ 刷新 / 提取
+
+    fun refresh(id: String) {
+        val config = findConfig(id) ?: return
+        val wv = ensureWebView(config)
+        val gen = (sessions[id]?.gen ?: 0) + 1
+        sessions[id] = Session(gen = gen)
+        val prev = states[id] ?: PlatformState()
+        states[id] = prev.copy(status = SyncStatus.LOADING, message = null, progress = 0)
         wv.stopLoading()
-        wv.loadUrl(platform.url)
+        wv.loadUrl(config.url)
         scope.launch {
             delay(TIMEOUT_MS)
-            finalizeTimeout(platform, gen)
+            finalizeTimeout(id, gen)
         }
     }
 
-    /** 切换桌面 / 移动 User-Agent 并重新加载。 */
-    fun toggleDesktopUa(platform: Platform) {
-        val wv = ensureWebView(platform)
+    fun toggleDesktopUa(id: String) {
+        val wv = webViews[id] ?: return
         val current = wv.settings.userAgentString
         val next = if (current == desktopUa) (defaultUa ?: current) else desktopUa
         wv.settings.userAgentString = next
-        refresh(platform)
+        refresh(id)
     }
 
-    fun isDesktopUa(platform: Platform): Boolean =
-        webViews[platform]?.settings?.userAgentString?.let { it == desktopUa } ?: true
+    fun isDesktopUa(id: String): Boolean =
+        webViews[id]?.settings?.userAgentString?.let { it == desktopUa } ?: true
 
-    /** 注册常驻隐藏容器（不拦截触摸、全尺寸、置于内容下层）。 */
     fun bindHidden(container: ViewGroup) {
         hiddenContainer = container
         webViews.values.forEach { moveTo(it, container) }
     }
 
-    /** 把该平台的 WebView 挂到前台显示（打开控制台网页时）。 */
-    fun attachForDisplay(platform: Platform, container: ViewGroup) {
-        moveTo(ensureWebView(platform), container)
+    fun attachForDisplay(id: String, container: ViewGroup) {
+        val config = findConfig(id) ?: return
+        moveTo(ensureWebView(config), container)
     }
 
-    /** 前台容器释放：移回隐藏容器；若此前未成功登录/无数据，则自动再刷新一次。 */
-    fun detachFromDisplay(platform: Platform, container: ViewGroup) {
-        val wv = webViews[platform] ?: return
+    fun detachFromDisplay(id: String, container: ViewGroup) {
+        val wv = webViews[id] ?: return
         if (wv.parent !== container) return
         container.removeView(wv)
         hiddenContainer?.let { moveTo(wv, it) }
-        val status = states[platform]?.status
+        val status = states[id]?.status
         if (status == SyncStatus.NEED_LOGIN || status == SyncStatus.IDLE || status == SyncStatus.ERROR) {
-            refresh(platform)
+            refresh(id)
         }
     }
 
@@ -154,11 +297,23 @@ class QuotaController(private val context: Context) {
         CookieManager.getInstance().flush()
     }
 
+    /** 销毁某平台的 WebView / session（配置变更或删除时）。 */
+    private fun teardown(id: String, dropState: Boolean = false) {
+        sessions.remove(id)
+        webViews.remove(id)?.let { wv ->
+            (wv.parent as? ViewGroup)?.removeView(wv)
+            wv.destroy()
+        }
+        if (dropState) {
+            states[id] = (states[id] ?: PlatformState()).copy(status = SyncStatus.IDLE, progress = -1)
+        }
+    }
+
     // ------------------------------------------------------------ WebView 装配
 
     @SuppressLint("SetJavaScriptEnabled")
-    private fun ensureWebView(platform: Platform): WebView {
-        webViews[platform]?.let { return it }
+    private fun ensureWebView(config: PlatformConfig): WebView {
+        webViews[config.id]?.let { return it }
         if (defaultUa == null) {
             defaultUa = runCatching { WebSettings.getDefaultUserAgent(context) }.getOrNull()
         }
@@ -173,14 +328,14 @@ class QuotaController(private val context: Context) {
                 useWideViewPort = true
                 loadWithOverviewMode = true
             }
-            webViewClient = Client(platform)
-            webChromeClient = Chrome(platform)
-            addJavascriptInterface(Bridge(platform), "AndroidBridge")
+            webViewClient = Client(config.id)
+            webChromeClient = Chrome(config.id)
+            addJavascriptInterface(Bridge(config.id), "AndroidBridge")
         }
         val cookieManager = CookieManager.getInstance()
         cookieManager.setAcceptCookie(true)
         cookieManager.setAcceptThirdPartyCookies(wv, true)
-        webViews[platform] = wv
+        webViews[config.id] = wv
         hiddenContainer?.let { moveTo(wv, it) }
         return wv
     }
@@ -195,18 +350,17 @@ class QuotaController(private val context: Context) {
         )
     }
 
-    private inner class Client(private val platform: Platform) : WebViewClient() {
+    private inner class Client(private val id: String) : WebViewClient() {
 
         override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
             super.onPageStarted(view, url, favicon)
-            // 文档开始时注入网络拦截钩子（脚本自带 __qmHooked 幂等保护，可重复注入）。
             view?.evaluateJavascript(JsScripts.HOOK_SCRIPT, null)
         }
 
         override fun onPageFinished(view: WebView?, url: String?) {
             super.onPageFinished(view, url)
-            val s = sessions[platform] ?: return
-            scheduleScan(platform, s.gen, FIRST_SCAN_DELAY_MS)
+            val s = sessions[id] ?: return
+            scheduleScan(id, s.gen, FIRST_SCAN_DELAY_MS)
         }
 
         override fun onReceivedError(
@@ -216,9 +370,9 @@ class QuotaController(private val context: Context) {
         ) {
             super.onReceivedError(view, request, error)
             if (request?.isForMainFrame != true) return
-            val st = states[platform] ?: return
+            val st = states[id] ?: return
             if (st.status != SyncStatus.LOADING) return
-            states[platform] = st.copy(
+            states[id] = st.copy(
                 status = SyncStatus.ERROR,
                 message = context.getString(
                     R.string.msg_page_load_failed,
@@ -229,52 +383,54 @@ class QuotaController(private val context: Context) {
         }
     }
 
-    private inner class Chrome(private val platform: Platform) : WebChromeClient() {
+    private inner class Chrome(private val id: String) : WebChromeClient() {
         override fun onProgressChanged(view: WebView?, newProgress: Int) {
-            val st = states[platform] ?: return
+            val st = states[id] ?: return
             if (st.status == SyncStatus.LOADING) {
-                states[platform] = st.copy(progress = newProgress)
+                states[id] = st.copy(progress = newProgress)
             }
         }
     }
 
-    /** JS → Kotlin 桥。方法运行在 WebView 的脚本线程，统一投递回主线程。 */
-    private inner class Bridge(private val platform: Platform) {
+    /** JS → Kotlin 桥。方法运行在 WebView 脚本线程，统一投递回主线程。 */
+    private inner class Bridge(private val id: String) {
 
         @JavascriptInterface
         fun onNetwork(url: String, body: String) {
             android.os.Handler(android.os.Looper.getMainLooper()).post {
-                handleNetwork(platform, url, body)
+                handleNetwork(id, body)
             }
         }
 
         @JavascriptInterface
         fun onDomScan(json: String) {
             android.os.Handler(android.os.Looper.getMainLooper()).post {
-                handleDomScan(platform, json)
+                handleDomScan(id, json)
             }
         }
     }
 
     // ------------------------------------------------------------ 提取流水线
 
-    private fun scheduleScan(platform: Platform, gen: Int, delayMs: Long) {
+    private fun scheduleScan(id: String, gen: Int, delayMs: Long) {
         scope.launch {
             delay(delayMs)
-            val s = sessions[platform] ?: return@launch
+            val s = sessions[id] ?: return@launch
             if (s.gen != gen) return@launch
-            val wv = webViews[platform] ?: return@launch
+            val wv = webViews[id] ?: return@launch
             wv.evaluateJavascript(JsScripts.DOM_SCAN_SCRIPT, null)
         }
     }
 
-    private fun handleDomScan(platform: Platform, json: String) {
-        val s = sessions[platform] ?: return
+    private fun handleDomScan(id: String, json: String) {
+        val s = sessions[id] ?: return
         runCatching {
             val obj = JSONObject(json)
             s.scanHasPassword = obj.optBoolean("hasPassword", false)
             s.scanLoginLike = obj.optBoolean("loginLike", false)
             s.scanUrl = obj.optString("url", "")
+            s.scanJson = json
+            lastScanJson = json
             val rawLines = buildList {
                 val arr = obj.optJSONArray("lines")
                 if (arr != null) {
@@ -284,92 +440,91 @@ class QuotaController(private val context: Context) {
                 }
             }
             s.scanLines = rawLines
-            s.dom = QuotaParser.parseDom(platform, json)
-        }
-        // SPA 渲染可能晚于首屏，没抓到就再扫几轮。
-        if (s.dom == null && s.scanAttempts < MAX_SCAN_RETRY) {
-            s.scanAttempts++
-            scheduleScan(platform, s.gen, RETRY_SCAN_DELAY_MS)
-        }
-        tryComplete(platform, s)
-    }
-
-    private fun handleNetwork(platform: Platform, url: String, body: String) {
-        val s = sessions[platform] ?: return
-        if (!s.seenBodies.add(body.hashCode())) return
-        val items = QuotaParser.parseNetwork(platform, url, body) ?: return
-        for (item in items) {
-            if (s.networkItems.size >= 60) break
-            // 只接受已知指标名，杜绝无名的“额度”野数据混入。
-            if (!QuotaParser.isKnownMetricLabel(item.label)) continue
-            if (s.networkItems.none { it.label == item.label }) {
-                s.networkItems.add(item)
+            findConfig(id)?.let { config ->
+                s.dom = QuotaRules.parseDom(config, json)
             }
         }
-        tryComplete(platform, s)
+        if (s.dom == null && id != DRAFT_ID && s.scanAttempts < MAX_SCAN_RETRY) {
+            s.scanAttempts++
+            scheduleScan(id, s.gen, RETRY_SCAN_DELAY_MS)
+        }
+        tryComplete(id, s)
     }
 
-    private fun tryComplete(platform: Platform, s: Session) {
-        if (s.dom != null) {
-            // DOM 已确认额度页 → 立即完成，网络数据作为补充合并。
-            val merged = QuotaParser.merge(s.networkItems, s.dom) ?: return
-            if (merged.items.isEmpty() && merged.lines.isEmpty() && merged.planName == null) return
-            complete(platform, merged)
+    private fun handleNetwork(id: String, body: String) {
+        val s = sessions[id] ?: return
+        if (!s.seenBodies.add(body.hashCode())) return
+        val config = findConfig(id) ?: return
+        val items = QuotaRules.parseNetwork(config, body) ?: return
+        for (item in items) {
+            if (s.networkItems.size >= 60) break
+            if (s.networkItems.none { it.label == item.label }) s.networkItems.add(item)
+        }
+        tryComplete(id, s)
+    }
+
+    private fun tryComplete(id: String, s: Session) {
+        val config = findConfig(id) ?: return
+        if (id == DRAFT_ID) {
+            // 草稿只采集数据，不做状态推断
+            if (s.dom != null || s.networkItems.isNotEmpty()) {
+                states[id] = (states[id] ?: PlatformState()).copy(status = SyncStatus.OK, progress = -1)
+            }
             return
         }
-        // DOM 尚未确认额度页：仅当网络数据命中已知指标名才接受，
-        // 避免把宣传页 / 登录页的普通 JSON 当成额度。
-        val strong = s.networkItems.filter { QuotaParser.isKnownMetricLabel(it.label) }
+        if (s.dom != null) {
+            val merged = QuotaRules.merge(s.networkItems, s.dom, config) ?: return
+            if (merged.items.isEmpty()) return
+            complete(id, merged)
+            return
+        }
+        val strong = s.networkItems.filter { QuotaRules.isKnownLabel(config, it.label) }
         if (strong.isNotEmpty()) {
-            val snapshot = QuotaParser.merge(strong, null) ?: return
-            complete(platform, snapshot)
+            QuotaRules.merge(strong, null, config)?.let { complete(id, it) }
         }
     }
 
-    private fun complete(platform: Platform, snapshot: QuotaSnapshot) {
-        states[platform] = PlatformState(
+    private fun complete(id: String, snapshot: QuotaSnapshot) {
+        states[id] = PlatformState(
             status = SyncStatus.OK,
             snapshot = snapshot,
             message = null,
             progress = -1,
         )
-        QuotaCache.save(context, platform, snapshot)
+        QuotaCache.save(context, id, snapshot)
     }
 
-    private fun finalizeTimeout(platform: Platform, gen: Int) {
-        val s = sessions[platform] ?: return
+    private fun finalizeTimeout(id: String, gen: Int) {
+        if (id == DRAFT_ID) return
+        val s = sessions[id] ?: return
         if (s.gen != gen) return
-        val st = states[platform] ?: return
+        val st = states[id] ?: return
         if (st.status != SyncStatus.LOADING) return
+        val config = findConfig(id) ?: return
 
-        // 1) DOM 已确认额度页 → 用已有数据完成
         s.dom?.let { dom ->
-            if (dom.items.isNotEmpty() || dom.lines.isNotEmpty() || dom.planName != null) {
-                complete(platform, QuotaParser.merge(s.networkItems, dom) ?: dom)
+            if (dom.items.isNotEmpty()) {
+                complete(id, QuotaRules.merge(s.networkItems, dom, config) ?: dom)
                 return
             }
         }
 
-        // 2) 未确认额度页：仅接受命中已知指标名的网络数据
-        val strong = s.networkItems.filter { QuotaParser.isKnownMetricLabel(it.label) }
+        val strong = s.networkItems.filter { QuotaRules.isKnownLabel(config, it.label) }
         if (strong.isNotEmpty()) {
-            QuotaParser.merge(strong, null)?.let {
-                complete(platform, it)
+            QuotaRules.merge(strong, null, config)?.let {
+                complete(id, it)
                 return
             }
         }
 
-        // 3) 判定为需登录或失败
-        val url = s.scanUrl.ifBlank { webViews[platform]?.url ?: "" }
-        val looksLogin = s.scanHasPassword ||
-            s.scanLoginLike ||
-            LOGIN_URL_REGEX.containsMatchIn(url) ||
-            QuotaParser.looksLikeMarketing(s.scanLines)
+        val url = s.scanUrl.ifBlank { webViews[id]?.url ?: "" }
+        val looksLogin = QuotaRules.looksLikeLogin(config, url, s.scanHasPassword, s.scanLoginLike, s.scanLines) ||
+            QuotaRules.looksLikeMarketing(config, s.scanLines)
 
-        states[platform] = if (looksLogin) {
+        states[id] = if (looksLogin) {
             st.copy(
                 status = SyncStatus.NEED_LOGIN,
-                message = context.getString(platform.loginHintRes),
+                message = context.getString(R.string.login_hint_default),
                 progress = -1,
             )
         } else {
@@ -382,12 +537,37 @@ class QuotaController(private val context: Context) {
     }
 
     private companion object {
+        const val DRAFT_ID = "__draft"
         const val TIMEOUT_MS = 30_000L
         const val FIRST_SCAN_DELAY_MS = 3_500L
         const val RETRY_SCAN_DELAY_MS = 5_000L
         const val MAX_SCAN_RETRY = 3
-        val LOGIN_URL_REGEX = Regex("(?i)(login|signin|sign-in|/auth|oauth)")
     }
+}
+
+private fun configToJson(config: PlatformConfig): JSONObject = JSONObject().apply {
+    put("id", config.id)
+    put("name", config.name)
+    put("url", config.url)
+    put("enabled", config.enabled)
+    put("loginKeywords", JSONArray(config.loginKeywords))
+    put("marketingKeywords", JSONArray(config.marketingKeywords))
+    put("pageMarkerRegex", config.pageMarkerRegex ?: JSONObject.NULL)
+    put("planNameRegex", config.planNameRegex ?: JSONObject.NULL)
+    put("planLineRegex", config.planLineRegex ?: JSONObject.NULL)
+    put("remainKey", config.remainKey ?: JSONObject.NULL)
+    put("endKey", config.endKey ?: JSONObject.NULL)
+    put("metrics", JSONArray().apply {
+        config.metrics.forEach { m ->
+            put(JSONObject().apply {
+                put("label", m.label)
+                put("mode", m.mode.name.lowercase())
+                put("valueRegex", m.valueRegex ?: JSONObject.NULL)
+                put("resetRegex", m.resetRegex ?: JSONObject.NULL)
+                put("lookAhead", m.lookAhead)
+            })
+        }
+    })
 }
 
 /** 全尺寸、不拦截触摸、永不显示的宿主容器，用于承载后台 WebView。 */

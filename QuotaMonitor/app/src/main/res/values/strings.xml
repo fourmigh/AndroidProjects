@@ -60,6 +60,83 @@
     <string name="msg_network_error">网络错误</string>
     <string name="msg_quota_not_found">未识别到额度数据；请点「打开网页」登录并确认额度卡片后重试</string>
 
+    <!-- 平台配置 -->
+    <string name="settings_title">平台配置</string>
+    <string name="settings_subtitle">新增 AI 套餐只需填写 URL，规则可自动识别</string>
+    <string name="action_settings">平台配置</string>
+    <string name="action_add_platform">新增平台</string>
+    <string name="action_edit">编辑</string>
+    <string name="action_delete">删除</string>
+    <string name="action_save">保存</string>
+    <string name="action_cancel">取消</string>
+    <string name="action_restore_defaults">恢复默认</string>
+    <string name="action_export">导出</string>
+    <string name="action_import">导入</string>
+    <string name="settings_enabled">启用</string>
+    <string name="settings_empty">还没有平台，点击「新增平台」开始</string>
+    <string name="settings_disabled_hint">已停用</string>
+    <string name="settings_delete_title">删除平台</string>
+    <string name="settings_delete_message">将删除「%1$s」及其缓存数据，确定吗？</string>
+    <string name="settings_restore_title">恢复默认配置</string>
+    <string name="settings_restore_message">将覆盖当前全部平台配置为内置默认，确定吗？</string>
+    <string name="settings_exported">配置已复制到剪贴板</string>
+    <string name="settings_import_title">导入配置</string>
+    <string name="settings_import_hint">粘贴配置 JSON（导出的格式）</string>
+    <string name="settings_import_failed">导入失败：JSON 格式或规则不正确</string>
+    <string name="settings_imported">已导入 %1$d 个平台</string>
+
+    <!-- 编辑平台 -->
+    <string name="edit_title">编辑平台</string>
+    <string name="edit_new_title">新增平台</string>
+    <string name="field_name">名称</string>
+    <string name="field_url">页面 URL</string>
+    <string name="field_metrics">额度指标</string>
+    <string name="field_add_metric">添加指标</string>
+    <string name="field_metric_label">指标名（网页上显示的文字）</string>
+    <string name="field_mode">取值方式</string>
+    <string name="mode_percent_inline">同行百分比（如 29% used）</string>
+    <string name="mode_percent_next_number">下方独立数字（如 13.51）</string>
+    <string name="mode_used_total">已用 / 总量（如 300 / 900）</string>
+    <string name="field_reset_regex">重置倒计时正则（可留空）</string>
+    <string name="field_value_regex">取值正则（高级，可留空）</string>
+    <string name="field_look_ahead">向下查找行数</string>
+    <string name="advanced_section">高级规则（一般无需修改）</string>
+    <string name="field_login_keywords">登录关键词（英文逗号分隔）</string>
+    <string name="field_marketing_keywords">宣传页关键词（英文逗号分隔）</string>
+    <string name="field_page_marker">额度页特征正则（可留空）</string>
+    <string name="field_plan_name_regex">套餐名正则（可留空）</string>
+    <string name="field_plan_line_regex">套餐名整行正则（可留空）</string>
+    <string name="field_remain_key">剩余时间字段名（可留空）</string>
+    <string name="field_end_key">结束时间字段名（可留空）</string>
+    <string name="error_invalid_url">URL 必须以 http(s) 开头</string>
+    <string name="error_empty_name">名称不能为空</string>
+    <string name="error_no_metrics">至少添加一个指标</string>
+    <string name="error_invalid_regex">正则表达式不合法</string>
+    <string name="error_empty_metric_label">指标名不能为空</string>
+    <string name="error_invalid_metric_mode">指标缺少可用取值规则</string>
+
+    <!-- 自动识别向导 -->
+    <string name="wizard_title">新增平台</string>
+    <string name="wizard_step_hint">填写 URL 后打开页面并登录，额度卡片显示后点「自动识别」</string>
+    <string name="wizard_url_placeholder">https://example.com/console</string>
+    <string name="wizard_name_placeholder">（可选）显示名称</string>
+    <string name="wizard_open">打开页面并登录</string>
+    <string name="wizard_detect">自动识别</string>
+    <string name="wizard_detecting">正在分析页面…</string>
+    <string name="wizard_no_candidates">未识别到额度数字：请确认已登录、额度卡片已显示后重试</string>
+    <string name="wizard_candidates_title">识别到以下指标，勾选并确认名称</string>
+    <string name="wizard_save">保存平台</string>
+    <string name="wizard_need_url">请先填写 URL</string>
+    <string name="wizard_back_to_page">返回页面继续登录</string>
+    <string name="wizard_nothing_selected">请至少勾选一个指标</string>
+    <string name="wizard_saved">已添加平台「%1$s」</string>
+
+    <string-array name="default_login_keywords" translatable="false">
+        <item>sign in</item>
+        <item>log in</item>
+        <item>登录</item>
+    </string-array>
+
     <!-- 技术格式（不参与本地化） -->
     <string name="time_pattern" translatable="false">MM-dd HH:mm</string>
 </resources>

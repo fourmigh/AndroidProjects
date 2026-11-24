@@ -1,28 +1,27 @@
 package org.caojun.quotamonitor.ui
 
 import android.view.ViewGroup
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -41,7 +40,6 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
@@ -51,13 +49,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import org.caojun.quotamonitor.R
-import org.caojun.quotamonitor.model.Platform
+import org.caojun.quotamonitor.model.PlatformConfig
 import org.caojun.quotamonitor.model.PlatformState
 import org.caojun.quotamonitor.model.QuotaItem
 import org.caojun.quotamonitor.model.QuotaSnapshot
+import org.caojun.quotamonitor.model.Source
 import org.caojun.quotamonitor.model.SyncStatus
-import org.caojun.quotamonitor.viewmodel.HiddenWebFrame
-import org.caojun.quotamonitor.viewmodel.QuotaController
 import org.caojun.quotamonitor.ui.theme.Accent
 import org.caojun.quotamonitor.ui.theme.Border
 import org.caojun.quotamonitor.ui.theme.CardBg
@@ -68,6 +65,9 @@ import org.caojun.quotamonitor.ui.theme.OkGreen
 import org.caojun.quotamonitor.ui.theme.Paper
 import org.caojun.quotamonitor.ui.theme.WarnAmber
 import org.caojun.quotamonitor.ui.theme.progressColor
+import org.caojun.quotamonitor.viewmodel.HiddenWebFrame
+import org.caojun.quotamonitor.viewmodel.QuotaController
+import java.math.BigDecimal
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -77,8 +77,10 @@ import kotlin.math.abs
 @Composable
 fun DashboardScreen(
     controller: QuotaController,
-    onOpenConsole: (Platform) -> Unit,
+    onOpenConsole: (String) -> Unit,
+    onOpenSettings: () -> Unit,
 ) {
+    val enabled = controller.configs.filter { it.enabled }
     Scaffold(
         containerColor = Paper,
         contentWindowInsets = WindowInsets.safeDrawing,
@@ -107,6 +109,13 @@ fun DashboardScreen(
                             tint = Accent,
                         )
                     }
+                    IconButton(onClick = onOpenSettings) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_settings),
+                            contentDescription = stringResource(R.string.action_settings),
+                            tint = Accent,
+                        )
+                    }
                 },
             )
         },
@@ -125,7 +134,7 @@ fun DashboardScreen(
                                 }
 
                                 override fun onViewDetachedFromWindow(v: android.view.View) = Unit
-                            }
+                            },
                         )
                     }
                 },
@@ -139,12 +148,22 @@ fun DashboardScreen(
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
-                items(Platform.entries, key = { it.name }) { platform ->
+                if (enabled.isEmpty()) {
+                    item {
+                        Text(
+                            stringResource(R.string.settings_empty),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Muted,
+                            modifier = Modifier.padding(vertical = 16.dp),
+                        )
+                    }
+                }
+                items(enabled, key = { it.id }) { config ->
                     PlatformCard(
-                        platform = platform,
-                        state = controller.states[platform] ?: PlatformState(),
-                        onRefresh = { controller.refresh(platform) },
-                        onOpenConsole = { onOpenConsole(platform) },
+                        config = config,
+                        state = controller.states[config.id] ?: PlatformState(),
+                        onRefresh = { controller.refresh(config.id) },
+                        onOpenConsole = { onOpenConsole(config.id) },
                     )
                 }
             }
@@ -156,7 +175,7 @@ fun DashboardScreen(
 
 @Composable
 private fun PlatformCard(
-    platform: Platform,
+    config: PlatformConfig,
     state: PlatformState,
     onRefresh: () -> Unit,
     onOpenConsole: () -> Unit,
@@ -166,12 +185,12 @@ private fun PlatformCard(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = CardBg),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Border),
+        border = BorderStroke(1.dp, Border),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    stringResource(platform.titleRes),
+                    config.name,
                     style = MaterialTheme.typography.titleMedium,
                     color = Ink,
                     modifier = Modifier.weight(1f),
@@ -212,7 +231,7 @@ private fun PlatformCard(
                 SyncStatus.NEED_LOGIN -> {
                     EmptyHint(stringResource(R.string.hint_need_login))
                     Text(
-                        state.message ?: stringResource(platform.loginHintRes),
+                        state.message ?: stringResource(R.string.login_hint_default),
                         style = MaterialTheme.typography.bodySmall,
                         color = WarnAmber,
                         modifier = Modifier.padding(top = 4.dp),
@@ -275,7 +294,7 @@ private fun PlatformCard(
                             )
                             Text(
                                 stringResource(
-                                    if (snap.source == org.caojun.quotamonitor.model.Source.NETWORK) {
+                                    if (snap.source == Source.NETWORK) {
                                         R.string.source_network
                                     } else {
                                         R.string.source_dom
@@ -405,8 +424,8 @@ private fun valueText(item: QuotaItem): String = when {
     item.used != null && item.total != null -> {
         val pair = stringResource(
             R.string.value_pair,
-            formatNumber(item.used, compact = true),
-            formatNumber(item.total, compact = true),
+            formatNumber(item.used),
+            formatNumber(item.total),
         )
         val percent = item.percent
         if (percent != null) {
@@ -417,7 +436,7 @@ private fun valueText(item: QuotaItem): String = when {
     }
     item.percent != null ->
         formatPercentText(item.percentText, item.percent) + stringResource(R.string.percent_suffix)
-    item.used != null -> formatNumber(item.used, compact = true)
+    item.used != null -> formatNumber(item.used)
     else -> stringResource(R.string.value_placeholder)
 }
 
@@ -432,31 +451,29 @@ internal fun formatPercentText(text: String?, value: Double): String {
         return trimmed
     }
     // 去尾随零：29.0 → "29"，13.510 → "13.51"，100.0 → "100"
-    return java.math.BigDecimal.valueOf(value)
+    return BigDecimal.valueOf(value)
         .stripTrailingZeros()
         .toPlainString()
 }
 
-/** 数字格式化（不带单位缩写），缩写后缀走字符串资源。 */
+/** 数字格式化，缩写后缀走字符串资源。 */
 @Composable
-private fun formatNumber(v: Double, compact: Boolean): String {
+private fun formatNumber(v: Double): String {
     val abs = abs(v)
     return when {
-        compact && abs >= 1_000_000_000 ->
+        abs >= 1_000_000_000 ->
             oneDecimal(v / 1_000_000_000) + stringResource(R.string.compact_billion)
-        compact && abs >= 1_000_000 ->
+        abs >= 1_000_000 ->
             oneDecimal(v / 1_000_000) + stringResource(R.string.compact_million)
-        compact && abs >= 10_000 ->
+        abs >= 10_000 ->
             oneDecimal(v / 1_000) + stringResource(R.string.compact_thousand)
         v == v.toLong().toDouble() -> String.format(Locale.US, "%,d", v.toLong())
         else -> twoDecimals(v)
     }
 }
 
-/** 保留 1 位小数（数值格式，不是文案）。 */
 private fun oneDecimal(v: Double): String = String.format(Locale.US, "%.1f", v)
 
-/** 保留 2 位小数（数值格式，不是文案）。 */
 private fun twoDecimals(v: Double): String = String.format(Locale.US, "%.2f", v)
 
 private fun formatTime(ts: Long, pattern: String): String =
