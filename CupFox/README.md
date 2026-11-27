@@ -39,6 +39,12 @@ CupFox/
 └── gradle/     # 版本目录
 ```
 
+控件来自同级的独立工程 `../ComposeWidgets/`，通过 `projectDir` 引用：
+
+- `widgets-theme`：集中维护控件配色，`WidgetTheme` / `LocalWidgetColors`；
+- `widgets-segmented`：N 选一控件 `SegmentedSelector`；
+- `widgets-bottom-nav`：图标 + 文字的底部导航 `BottomNavBar`。
+
 `traffic/` 对外提供两层：
 
 - `TrafficStore`：流量查询、权限检查、网络监听、格式化（无 UI）；
@@ -141,6 +147,9 @@ cd CupFox
 - 每条历史记录 `lastPlayer`（web / media3 / external）和当前线路 m3u8：
   点击历史直接用上次的播放器；长按历史弹出播放方式菜单
 - 播放器模块 `:player` 自带 Media3 依赖，主 App 只依赖模块；播放进度通过 `PlayerProgressBus` 回传
+- 控件配色集中在 `ComposeWidgets/theme` 的 `WidgetTheme`，默认跟随宿主 `MaterialTheme`；
+  `ComposeWidgets/segmented` 的 `SegmentedSelector` 用于「我的」顶部页签和默认播放器，
+  `ComposeWidgets/bottom-nav` 的 `BottomNavBar` 用于底部导航
 - 页面延伸到底部栏后面，通过注入 `body { padding-bottom }` 让内容能滚到导航栏上方
 - 流量按天查询、按 UID 统计，整月结果缓存，避免部分 ROM 的跨天 bucket 把整月流量堆到 1 号
 - 先用 `queryDetailsForUid` 探测本 App 最近 14 天是否有跨天 bucket：

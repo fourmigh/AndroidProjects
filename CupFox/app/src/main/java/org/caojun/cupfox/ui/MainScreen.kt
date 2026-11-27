@@ -34,10 +34,6 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemColors
-import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -67,6 +63,9 @@ import org.caojun.cupfox.model.VideoLine
 import org.caojun.cupfox.web.BrowserController
 import org.caojun.player.PlaybackMethodDialog
 import org.caojun.player.PlayerType
+import org.caojun.widgets.bottomnav.BottomNavBar
+import org.caojun.widgets.bottomnav.BottomNavDefaults
+import org.caojun.widgets.bottomnav.BottomNavItem
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -94,7 +93,7 @@ fun MainScreen(controller: BrowserController, onExit: () -> Unit) {
     val navigationBarInset = WindowInsets.navigationBars
         .asPaddingValues()
         .calculateBottomPadding()
-    val contentBottomInset = 80.dp + navigationBarInset
+    val contentBottomInset = BottomNavDefaults.ContentHeight + navigationBarInset
 
     LaunchedEffect(maxNavTabs, controller.navItems) {
         controller.limitNavSelection(maxNavTabs)
@@ -170,52 +169,28 @@ fun MainScreen(controller: BrowserController, onExit: () -> Unit) {
                 enter = fadeIn() + expandVertically(expandFrom = Alignment.Bottom),
                 exit = fadeOut() + shrinkVertically(shrinkTowards = Alignment.Bottom),
             ) {
-                NavigationBar(
-                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = controller.navAlpha),
-                    tonalElevation = 0.dp,
-                ) {
-                    bottomItems.forEach { item ->
-                        NavigationBarItem(
-                            selected = !showMine && selectedPath == item.path,
-                            onClick = { select(item) },
-                            icon = {
-                                Icon(
-                                    painter = painterResource(navIconRes(item.iconKey)),
-                                    contentDescription = item.label,
-                                    modifier = Modifier.size(22.dp),
-                                )
-                            },
-                            label = {
-                                Text(
-                                    text = item.label,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    style = MaterialTheme.typography.labelSmall,
-                                )
-                            },
-                            colors = navItemColors(),
+                BottomNavBar(
+                    items = bottomItems.map { item ->
+                        BottomNavItem(
+                            value = item.path,
+                            label = item.label,
+                            icon = painterResource(navIconRes(item.iconKey)),
                         )
-                    }
-                    NavigationBarItem(
-                        selected = showMine,
-                        onClick = { showMine = true },
-                        icon = {
-                            Icon(
-                                painter = painterResource(R.drawable.ic_person),
-                                contentDescription = "我的",
-                                modifier = Modifier.size(22.dp),
-                            )
-                        },
-                        label = {
-                            Text(
-                                text = "我的",
-                                maxLines = 1,
-                                style = MaterialTheme.typography.labelSmall,
-                            )
-                        },
-                        colors = navItemColors(),
-                    )
-                }
+                    } + BottomNavItem(
+                        value = MINE_VALUE,
+                        label = "我的",
+                        icon = painterResource(R.drawable.ic_person),
+                    ),
+                    selected = if (showMine) MINE_VALUE else selectedPath,
+                    onSelected = { value ->
+                        if (value == MINE_VALUE) {
+                            showMine = true
+                        } else {
+                            controller.navItems.firstOrNull { it.path == value }?.let { select(it) }
+                        }
+                    },
+                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = controller.navAlpha),
+                )
             }
         },
     ) { padding ->
@@ -331,14 +306,9 @@ fun MainScreen(controller: BrowserController, onExit: () -> Unit) {
     }
 }
 
-@Composable
-private fun navItemColors(): NavigationBarItemColors = NavigationBarItemDefaults.colors(
-    selectedIconColor = MaterialTheme.colorScheme.primary,
-    selectedTextColor = MaterialTheme.colorScheme.primary,
-    indicatorColor = MaterialTheme.colorScheme.surfaceVariant,
-    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-)
+private const val MINE_VALUE = "__mine__"
+
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

@@ -4,6 +4,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import org.caojun.widgets.theme.WidgetTheme
 
 private val CupFoxColors = darkColorScheme(
     primary = Color(0xFFFF7A45),
@@ -24,8 +25,9 @@ private val CupFoxColors = darkColorScheme(
 
 @Composable
 fun CupFoxTheme(content: @Composable () -> Unit) {
-    MaterialTheme(
-        colorScheme = CupFoxColors,
-        content = content,
-    )
+    MaterialTheme(colorScheme = CupFoxColors) {
+        WidgetTheme {
+            content()
+        }
+    }
 }

@@ -4,7 +4,6 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,14 +19,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -58,6 +55,8 @@ import org.caojun.cupfox.model.HistoryEntry
 import org.caojun.cupfox.web.BrowserController
 import org.caojun.player.DefaultPlayerSetting
 import org.caojun.traffic.TrafficPanel
+import org.caojun.widgets.segmented.SegmentedOption
+import org.caojun.widgets.segmented.SegmentedSelector
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 import java.text.SimpleDateFormat
@@ -77,34 +76,17 @@ fun MineScreen(
     var section by remember { mutableStateOf(0) }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            FilterChip(
-                selected = section == 0,
-                onClick = { section = 0 },
-                label = { Text("观看历史") },
-            )
-            FilterChip(
-                selected = section == 1,
-                onClick = { section = 1 },
-                label = { Text("栏目") },
-            )
-            FilterChip(
-                selected = section == 2,
-                onClick = { section = 2 },
-                label = { Text("流量") },
-            )
-            FilterChip(
-                selected = section == 3,
-                onClick = { section = 3 },
-                label = { Text("设置") },
-            )
-        }
+        SegmentedSelector(
+            options = listOf(
+                SegmentedOption(0, "观看历史"),
+                SegmentedOption(1, "栏目"),
+                SegmentedOption(2, "流量"),
+                SegmentedOption(3, "设置"),
+            ),
+            selected = section,
+            onSelected = { section = it },
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+        )
         when (section) {
             0 -> HistoryPanel(
                 controller = controller,

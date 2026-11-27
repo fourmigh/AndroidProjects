@@ -66,6 +66,9 @@ android {
 dependencies {
     implementation(project(":traffic"))
     implementation(project(":player"))
+    implementation(project(":widgets-theme"))
+    implementation(project(":widgets-segmented"))
+    implementation(project(":widgets-bottom-nav"))
 
     implementation(platform(libs.compose.bom))
 

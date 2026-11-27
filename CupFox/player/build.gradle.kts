@@ -29,6 +29,8 @@ android {
 }
 
 dependencies {
+    implementation(project(":widgets-segmented"))
+
     implementation(platform(libs.compose.bom))
 
     implementation(libs.androidx.core.ktx)
