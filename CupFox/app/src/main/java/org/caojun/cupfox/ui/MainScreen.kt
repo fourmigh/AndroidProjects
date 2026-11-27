@@ -61,8 +61,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import org.caojun.cupfox.R
+import org.caojun.cupfox.model.HistoryEntry
 import org.caojun.cupfox.model.NavItem
+import org.caojun.cupfox.model.VideoLine
 import org.caojun.cupfox.web.BrowserController
+import org.caojun.player.PlaybackMethodDialog
+import org.caojun.player.PlayerType
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -78,10 +82,14 @@ fun MainScreen(controller: BrowserController, onExit: () -> Unit) {
     ) {
         controller.bottomNavItems(maxNavTabs)
     }
-    var selectedPath by remember { mutableStateOf(bottomItems.firstOrNull()?.path ?: "/index.html") }
+
+    fun homeItem(): NavItem? = bottomItems.firstOrNull()
+
+    var selectedPath by remember { mutableStateOf(homeItem()?.path ?: "/index.html") }
     var showMine by remember { mutableStateOf(false) }
     var showSearch by remember { mutableStateOf(false) }
     var showLines by remember { mutableStateOf(false) }
+    var historyEntry by remember { mutableStateOf<HistoryEntry?>(null) }
 
     val navigationBarInset = WindowInsets.navigationBars
         .asPaddingValues()
@@ -98,10 +106,10 @@ fun MainScreen(controller: BrowserController, onExit: () -> Unit) {
         )
     }
 
-    // 网页导航更新后，如果当前选中项已不存在，回退到第一个栏目
+    // 网页导航更新后，如果当前选中项已不存在，回退到第一个勾选栏目
     LaunchedEffect(bottomItems) {
         if (bottomItems.none { it.path == selectedPath }) {
-            selectedPath = bottomItems.firstOrNull()?.path ?: selectedPath
+            selectedPath = homeItem()?.path ?: selectedPath
         }
     }
 
@@ -122,14 +130,15 @@ fun MainScreen(controller: BrowserController, onExit: () -> Unit) {
     }
 
     fun resetToHome() {
-        bottomItems.firstOrNull()?.let { selectedPath = it.path }
+        homeItem()?.let { selectedPath = it.path }
     }
 
     BackHandler {
-        val home = bottomItems.firstOrNull()
+        val home = homeItem()
         when {
             controller.isFullscreen -> controller.exitFullscreen()
             showSearch -> showSearch = false
+            historyEntry != null -> historyEntry = null
             showLines -> showLines = false
             showMine -> showMine = false
             controller.goBack() -> Unit
@@ -242,6 +251,7 @@ fun MainScreen(controller: BrowserController, onExit: () -> Unit) {
                                 resetToHome()
                                 controller.openHistory(entry)
                             },
+                            onLongPressHistory = { entry -> historyEntry = entry },
                             onOpenPath = { path ->
                                 controller.navItems.firstOrNull { it.path == path }?.let { select(it) }
                             },
@@ -271,7 +281,52 @@ fun MainScreen(controller: BrowserController, onExit: () -> Unit) {
     if (showLines) {
         LinesSheet(
             controller = controller,
+            onLineSelected = { line ->
+                when (controller.playerPreferences.defaultPlayer) {
+                    PlayerType.MEDIA3 -> controller.openWithMedia3(line)
+                    PlayerType.EXTERNAL -> {
+                        controller.setCurrentPlayer("external")
+                        controller.openExternally(line)
+                    }
+                    PlayerType.WEB -> controller.setCurrentPlayer("web")
+                }
+                showLines = false
+            },
             onDismiss = { showLines = false },
+        )
+    }
+
+    historyEntry?.let { entry ->
+        PlaybackMethodDialog(
+            title = "继续观看",
+            subtitle = "${entry.title} · ${entry.episodeName}",
+            progressText = if (entry.durationMs > 0L) {
+                "上次看到 ${formatDuration(entry.positionMs)} / ${formatDuration(entry.durationMs)}"
+            } else {
+                null
+            },
+            hasVideo = entry.videoUrl.isNotBlank(),
+            onDismiss = { historyEntry = null },
+            onWeb = {
+                historyEntry = null
+                showMine = false
+                resetToHome()
+                controller.openHistoryInWeb(entry)
+            },
+            onMedia3 = {
+                historyEntry = null
+                showMine = false
+                controller.openHistoryWithMedia3(entry)
+            },
+            onExternal = {
+                historyEntry = null
+                showMine = false
+                controller.openHistoryExternally(entry)
+            },
+            onCopy = {
+                historyEntry = null
+                controller.copyHistoryUrl(entry)
+            },
         )
     }
 }
@@ -379,6 +434,7 @@ private fun SearchDialog(
 @Composable
 private fun LinesSheet(
     controller: BrowserController,
+    onLineSelected: (VideoLine) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val lines = controller.lines
@@ -395,7 +451,7 @@ private fun LinesSheet(
             Text("视频线路", style = MaterialTheme.typography.titleLarge)
             Spacer(Modifier.height(4.dp))
             Text(
-                "选一集交给外部播放器或投屏。若播放失败，可复制链接粘贴到播放器。",
+                "选择一集，再选择用哪种方式播放。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -418,23 +474,7 @@ private fun LinesSheet(
                             overflow = TextOverflow.Ellipsis,
                         )
                     },
-                    trailingContent = {
-                        Row {
-                            IconButton(onClick = { controller.openExternally(line) }) {
-                                Icon(
-                                    painterResource(R.drawable.ic_cast),
-                                    contentDescription = "外部播放器或投屏",
-                                )
-                            }
-                            IconButton(onClick = { controller.copyLine(line) }) {
-                                Icon(
-                                    painterResource(R.drawable.ic_copy),
-                                    contentDescription = "复制链接",
-                                )
-                            }
-                        }
-                    },
-                    modifier = Modifier.clickable { controller.openExternally(line) },
+                    modifier = Modifier.clickable { onLineSelected(line) },
                 )
                 HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
             }
@@ -442,3 +482,5 @@ private fun LinesSheet(
         Spacer(Modifier.height(24.dp))
     }
 }
+
+

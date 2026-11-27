@@ -42,6 +42,10 @@ import org.caojun.cupfox.data.SettingsStore
 import org.caojun.cupfox.model.HistoryEntry
 import org.caojun.cupfox.model.NavItem
 import org.caojun.cupfox.model.VideoLine
+import org.caojun.player.PlayerLauncher
+import org.caojun.player.PlayerPreferences
+import org.caojun.player.PlayerProgressBus
+import org.caojun.player.PlayerProgressListener
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayInputStream
@@ -55,6 +59,7 @@ import java.io.ByteArrayInputStream
 class BrowserController(private val activity: ComponentActivity) {
 
     val settings = SettingsStore(activity)
+    val playerPreferences = PlayerPreferences(activity)
     private val historyStore = HistoryStore(activity)
 
     var history by mutableStateOf(historyStore.load())
@@ -106,6 +111,34 @@ class BrowserController(private val activity: ComponentActivity) {
 
     init {
         allowedRoots.add(SettingsStore.rootDomain(settings.baseUrl))
+        PlayerProgressBus.listener = object : PlayerProgressListener {
+            override fun onProgress(
+                key: String,
+                episodeKey: String,
+                episodeName: String,
+                positionMs: Long,
+                durationMs: Long,
+            ) {
+                historyStore.updateProgress(
+                    key = key,
+                    episodeKey = episodeKey,
+                    episodeName = episodeName,
+                    positionMs = positionMs,
+                    durationMs = durationMs,
+                )
+                history = historyStore.load()
+            }
+
+            override fun onLastPlayerChanged(key: String, player: org.caojun.player.PlayerType) {
+                historyStore.setLastPlayer(key, player.storedName)
+                history = historyStore.load()
+            }
+
+            override fun onVideoUrl(key: String, videoUrl: String) {
+                historyStore.setVideoUrl(key, videoUrl)
+                history = historyStore.load()
+            }
+        }
         webView = createWebView()
         CookieManager.getInstance().apply {
             setAcceptCookie(true)
@@ -115,7 +148,10 @@ class BrowserController(private val activity: ComponentActivity) {
         if (!navReady) {
             webView.postDelayed(navTimeoutTask, NAV_TIMEOUT_MS)
         }
-        loadTab(navItems.firstOrNull()?.path ?: "/index.html")
+        val startPath = orderedNavItems().firstOrNull { navSelected.contains(it.path) }?.path
+            ?: navItems.firstOrNull()?.path
+            ?: "/index.html"
+        loadTab(startPath)
     }
 
     // ---------------------------------------------------------------- 公开操作
@@ -135,7 +171,82 @@ class BrowserController(private val activity: ComponentActivity) {
     }
 
     fun openHistory(entry: HistoryEntry) {
+        val latest = historyStore.load().firstOrNull { it.key == entry.key } ?: entry
+        when (latest.lastPlayer) {
+            "media3" -> if (latest.videoUrl.isNotBlank()) {
+                openHistoryWithMedia3(latest)
+            } else {
+                openHistoryInWeb(latest, rememberPlayer = false)
+            }
+            "external" -> if (latest.videoUrl.isNotBlank()) {
+                openHistoryExternally(latest)
+            } else {
+                openHistoryInWeb(latest, rememberPlayer = false)
+            }
+            else -> openHistoryInWeb(latest)
+        }
+    }
+
+    fun openHistoryInWeb(entry: HistoryEntry, rememberPlayer: Boolean = true) {
+        if (rememberPlayer) {
+            historyStore.setLastPlayer(entry.key, "web")
+            history = historyStore.load()
+        }
         load(entry.url)
+    }
+
+    /** 更新当前播放页所属剧集的上次播放器。 */
+    fun setCurrentPlayer(player: String) {
+        val url = webView.url ?: return
+        if (!url.contains("/p/")) return
+        historyStore.setLastPlayer(historyKey(url), player)
+        history = historyStore.load()
+    }
+
+    fun openHistoryWithMedia3(entry: HistoryEntry) {
+        if (entry.videoUrl.isBlank()) {
+            toast("这条记录还没有视频地址，请先用 App 内播放一次")
+            return
+        }
+        historyStore.setLastPlayer(entry.key, "media3")
+        historyStore.setVideoUrl(entry.key, entry.videoUrl)
+        history = historyStore.load()
+        val startMs = if (entry.durationMs > 0L &&
+            entry.positionMs > entry.durationMs - 30_000L
+        ) {
+            0L
+        } else {
+            entry.positionMs
+        }
+        PlayerLauncher.launchMedia3(
+            context = activity,
+            url = entry.videoUrl,
+            title = entry.title,
+            episodeName = entry.episodeName,
+            historyKey = entry.key,
+            episodeKey = entry.episodeKey,
+            referer = settings.baseUrl,
+            startMs = startMs,
+        )
+    }
+
+    fun openHistoryExternally(entry: HistoryEntry) {
+        if (entry.videoUrl.isBlank()) {
+            toast("这条记录还没有视频地址，请先用 App 内播放一次")
+            return
+        }
+        historyStore.setLastPlayer(entry.key, "external")
+        history = historyStore.load()
+        openExternally(VideoLine(name = entry.episodeName, url = entry.videoUrl))
+    }
+
+    fun copyHistoryUrl(entry: HistoryEntry) {
+        if (entry.videoUrl.isBlank()) {
+            toast("这条记录还没有视频地址")
+            return
+        }
+        copyToClipboard(entry.videoUrl)
+        toast("视频链接已复制")
     }
 
     fun reload() {
@@ -169,28 +280,45 @@ class BrowserController(private val activity: ComponentActivity) {
         loadTab("/index.html")
     }
 
+    /** 用 Media3 / ExoPlayer 播放当前线路，进度写入同一份观看历史。 */
+    fun openWithMedia3(line: VideoLine) {
+        val url = webView.url ?: return
+        if (!url.contains("/p/")) {
+            toast("请在播放页使用")
+            return
+        }
+
+        val key = historyKey(url)
+        val epKey = episodeKey(url)
+        historyStore.setLastPlayer(key, "media3")
+        historyStore.setVideoUrl(key, line.url)
+        history = historyStore.load()
+        val saved = history.firstOrNull { it.key == key }?.episodes?.get(epKey)
+        val startMs = saved?.let { progress ->
+            if (progress.durationMs > 0L &&
+                progress.positionMs > progress.durationMs - 30_000L
+            ) {
+                0L
+            } else {
+                progress.positionMs
+            }
+        } ?: 0L
+
+        PlayerLauncher.launchMedia3(
+            context = activity,
+            url = line.url,
+            title = pageTitle.ifBlank { line.name },
+            episodeName = line.name,
+            historyKey = key,
+            episodeKey = epKey,
+            referer = settings.baseUrl,
+            startMs = startMs,
+        )
+    }
+
     /** 调用系统里的外部播放器（MX Player / VLC 等），也用于投屏。 */
     fun openExternally(line: VideoLine) {
-        val uri = Uri.parse(line.url)
-        val mimeTypes = listOf(
-            "application/x-mpegURL",
-            "application/vnd.apple.mpegurl",
-            "video/*",
-        )
-        for (mime in mimeTypes) {
-            try {
-                activity.startActivity(
-                    Intent(Intent.ACTION_VIEW)
-                        .setDataAndType(uri, mime)
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                )
-                return
-            } catch (_: ActivityNotFoundException) {
-                // 尝试下一种 MIME，最后降级为复制链接
-            } catch (e: Exception) {
-                Log.w(TAG, "open externally failed", e)
-            }
-        }
+        if (PlayerLauncher.launchExternal(activity, line.url)) return
         copyToClipboard(line.url)
         toast("没有找到能播放 m3u8 的应用，链接已复制")
     }
@@ -202,6 +330,10 @@ class BrowserController(private val activity: ComponentActivity) {
 
     fun removeHistory(key: String) {
         historyStore.remove(key)
+        history = historyStore.load()
+    }
+
+    fun refreshHistory() {
         history = historyStore.load()
     }
 
@@ -366,6 +498,26 @@ class BrowserController(private val activity: ComponentActivity) {
                 view.postDelayed({ extractNav(view) }, 600L)
                 view.postDelayed({ extractNav(view) }, 2000L)
             } else {
+                view.evaluateJavascript(PageInjector.TRACK_PROGRESS_JS, null)
+                val key = historyKey(url)
+                val epKey = episodeKey(url)
+                val saved = history.firstOrNull { it.key == key }?.episodes?.get(epKey)
+                if (saved != null) {
+                    val nearEnd = saved.durationMs > 0L &&
+                        saved.positionMs > saved.durationMs - 30_000L
+                    if (!nearEnd && saved.positionMs > 10_000L) {
+                        view.postDelayed({
+                            if (view.url?.let { historyKey(it) } == key &&
+                                view.url?.let { episodeKey(it) } == epKey
+                            ) {
+                                view.evaluateJavascript(
+                                    PageInjector.seekScript(saved.positionMs),
+                                    null,
+                                )
+                            }
+                        }, 1500L)
+                    }
+                }
                 // 播放器脚本在页面末尾执行，稍等再取线路与标题
                 view.postDelayed({ extractFromPage(view, url) }, 900L)
                 view.postDelayed({ extractFromPage(view, url) }, 2500L)
@@ -496,6 +648,11 @@ class BrowserController(private val activity: ComponentActivity) {
             activity.runOnUiThread {
                 if (!isPlayingPage) return@runOnUiThread
                 lines = parseLines(json)
+                val url = webView.url
+                if (url != null && url.contains("/p/")) {
+                    historyStore.setVideoUrl(historyKey(url), currentVideoUrl())
+                    history = historyStore.load()
+                }
             }
         }
 
@@ -504,10 +661,29 @@ class BrowserController(private val activity: ComponentActivity) {
             activity.runOnUiThread {
                 val url = webView.url ?: return@runOnUiThread
                 if (!url.contains("/p/")) return@runOnUiThread
-                val title = runCatching {
-                    JSONObject(json).optString("title")
-                }.getOrDefault("")
-                recordHistory(url, title)
+                val data = runCatching { JSONObject(json) }.getOrNull() ?: return@runOnUiThread
+                recordHistory(
+                    url = url,
+                    rawTitle = data.optString("title"),
+                    episode = data.optString("episode"),
+                )
+            }
+        }
+
+        @JavascriptInterface
+        fun onProgress(positionMs: Long, durationMs: Long, episodeName: String) {
+            activity.runOnUiThread {
+                val url = webView.url ?: return@runOnUiThread
+                if (!url.contains("/p/") || durationMs <= 0L) return@runOnUiThread
+                historyStore.updateProgress(
+                    key = historyKey(url),
+                    episodeKey = episodeKey(url),
+                    episodeName = episodeName,
+                    positionMs = positionMs,
+                    durationMs = durationMs,
+                    videoUrl = currentVideoUrl(),
+                )
+                history = historyStore.load()
             }
         }
 
@@ -591,14 +767,9 @@ class BrowserController(private val activity: ComponentActivity) {
         settings.saveNavConfig(navOrder, navSelected)
     }
 
-    fun moveNav(path: String, delta: Int) {
-        val list = orderedNavItems().map { it.path }.toMutableList()
-        val index = list.indexOf(path)
-        val target = index + delta
-        if (index < 0 || target !in list.indices) return
-        list.removeAt(index)
-        list.add(target, path)
-        navOrder = list
+    fun applyNavOrder(paths: List<String>) {
+        if (paths == navOrder) return
+        navOrder = paths
         navSelectionTouched = true
         settings.navSelectionTouched = true
         settings.saveNavConfig(navOrder, navSelected)
@@ -702,15 +873,36 @@ class BrowserController(private val activity: ComponentActivity) {
         }.getOrDefault(emptyList())
     }
 
-    private fun recordHistory(url: String, rawTitle: String) {
+    private fun recordHistory(url: String, rawTitle: String, episode: String = "") {
         if (!url.contains("/p/")) return
         val title = cleanTitle(rawTitle.ifBlank { pageTitle })
         if (title.isBlank()) return
 
-        val key = Regex("/p/(\\d+)").find(url)?.groupValues?.getOrNull(1)
-            ?.let { "p:$it" } ?: url
+        val key = historyKey(url)
+        val epKey = episodeKey(url)
         val existing = history.firstOrNull { it.key == key }
-        if (existing != null && existing.url == url && existing.title == title) return
+
+        if (existing != null) {
+            val saved = existing.episodes[epKey]
+            val nextEpisode = episode.ifBlank {
+                if (existing.episodeKey == epKey) existing.episodeName else ""
+            }
+            val next = existing.copy(
+                title = title,
+                url = url,
+                episodeName = nextEpisode,
+                episodeKey = epKey,
+                positionMs = saved?.positionMs ?: 0L,
+                durationMs = saved?.durationMs ?: 0L,
+                updatedAt = System.currentTimeMillis(),
+                videoUrl = currentVideoUrl().ifBlank { existing.videoUrl },
+            )
+            if (next != existing) {
+                historyStore.record(next)
+                history = historyStore.load()
+            }
+            return
+        }
 
         historyStore.record(
             HistoryEntry(
@@ -718,9 +910,26 @@ class BrowserController(private val activity: ComponentActivity) {
                 title = title,
                 url = url,
                 updatedAt = System.currentTimeMillis(),
+                episodeName = episode,
+                episodeKey = epKey,
+                videoUrl = currentVideoUrl(),
             )
         )
         history = historyStore.load()
+    }
+
+    private fun currentVideoUrl(): String =
+        lines.firstOrNull { it.current }?.url ?: lines.firstOrNull()?.url ?: ""
+
+    /** 每部剧一条历史。 */
+    private fun historyKey(url: String): String =
+        Regex("/p/(\\d+)").find(url)?.groupValues?.getOrNull(1)?.let { "p:$it" } ?: url
+
+    /** 集标识：URL 里的集索引，不含线路参数。 */
+    private fun episodeKey(url: String): String {
+        val path = Uri.parse(url).path.orEmpty()
+        val parts = path.trim('/').split('/')
+        return parts.getOrNull(3)?.takeIf { it.isNotBlank() } ?: "0"
     }
 
     private fun cleanTitle(raw: String?): String {
@@ -758,6 +967,7 @@ class BrowserController(private val activity: ComponentActivity) {
     }
 
     fun onDestroy() {
+        PlayerProgressBus.listener = null
         webView.removeCallbacks(navTimeoutTask)
         exitFullscreen()
         (webView.parent as? ViewGroup)?.removeView(webView)

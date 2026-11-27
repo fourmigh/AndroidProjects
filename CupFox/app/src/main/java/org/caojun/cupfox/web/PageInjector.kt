@@ -163,13 +163,91 @@ object PageInjector {
         (function () {
           try {
             var og = document.querySelector('meta[property="og:image"]');
+            var episode = '';
+            try {
+              if (window.Iyplayer && window.Iyplayer.name) episode = window.Iyplayer.name;
+            } catch (e) {}
+            if (!episode) {
+              var active = document.querySelector('.myci-playlist__link.active, .myci-vodlist__link.active');
+              if (active) episode = (active.textContent || '').trim();
+            }
             window.AndroidBridge.onPageMeta(JSON.stringify({
               title: document.title || '',
-              cover: og ? (og.getAttribute('content') || '') : ''
+              cover: og ? (og.getAttribute('content') || '') : '',
+              episode: episode
             }));
           } catch (e) {}
         })();
     """.trimIndent()
+
+    /** 播放页定时回传播放进度，10 秒一次，暂停时不回传。 */
+    val TRACK_PROGRESS_JS: String = """
+        (function () {
+          if (window.__cupfoxProgressTimer) return;
+          window.__cupfoxProgressTimer = true;
+          var lastSent = 0;
+          setInterval(function () {
+            try {
+              var videos = document.querySelectorAll('video');
+              var video = null;
+              for (var i = 0; i < videos.length; i++) {
+                var candidate = videos[i];
+                if (isFinite(candidate.duration) && candidate.duration > 0 && !candidate.paused) {
+                  video = candidate;
+                  break;
+                }
+              }
+              if (!video) {
+                for (var j = 0; j < videos.length; j++) {
+                  if (isFinite(videos[j].duration) && videos[j].duration > 0) {
+                    video = videos[j];
+                    break;
+                  }
+                }
+              }
+              if (!video || !isFinite(video.duration) || video.duration <= 0) return;
+              if (video.paused) return;
+
+              var now = Date.now();
+              if (now - lastSent < 10000) return;
+              lastSent = now;
+
+              var episode = '';
+              try {
+                if (window.Iyplayer && window.Iyplayer.name) episode = window.Iyplayer.name;
+              } catch (e) {}
+              window.AndroidBridge.onProgress(
+                Math.round(video.currentTime * 1000),
+                Math.round(video.duration * 1000),
+                episode || ''
+              );
+            } catch (e) {}
+          }, 5000);
+        })();
+    """.trimIndent()
+
+    /** 从历史继续播放时，等播放器初始化后跳到上次位置。 */
+    fun seekScript(positionMs: Long): String {
+        val seconds = positionMs / 1000.0
+        return """
+            (function () {
+              var target = $seconds;
+              var tries = 0;
+              var timer = setInterval(function () {
+                try {
+                  var video = document.querySelector('video');
+                  if (video && isFinite(video.duration) && video.duration > 0) {
+                    if (Math.abs(video.currentTime - target) > 3) {
+                      video.currentTime = target;
+                    }
+                    clearInterval(timer);
+                  }
+                } catch (e) {}
+                if (++tries > 40) clearInterval(timer);
+              }, 500);
+            })();
+        """.trimIndent()
+    }
 
     /**
      * 读取原站导航，用于生成底部栏目。

@@ -33,7 +33,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        if (::controller.isInitialized) controller.onResume()
+        if (::controller.isInitialized) {
+            controller.onResume()
+            controller.refreshHistory()
+        }
     }
 
     override fun onPause() {

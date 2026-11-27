@@ -1,7 +1,9 @@
 package org.caojun.cupfox.ui
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,7 +19,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
@@ -30,6 +32,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -45,6 +48,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -52,7 +56,10 @@ import org.caojun.cupfox.R
 import org.caojun.cupfox.data.SettingsStore
 import org.caojun.cupfox.model.HistoryEntry
 import org.caojun.cupfox.web.BrowserController
+import org.caojun.player.DefaultPlayerSetting
 import org.caojun.traffic.TrafficPanel
+import sh.calvin.reorderable.ReorderableItem
+import sh.calvin.reorderable.rememberReorderableLazyListState
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -63,6 +70,7 @@ fun MineScreen(
     controller: BrowserController,
     maxNavTabs: Int,
     onOpenHistory: (HistoryEntry) -> Unit,
+    onLongPressHistory: (HistoryEntry) -> Unit,
     onOpenPath: (String) -> Unit,
     onOpenWeb: () -> Unit,
 ) {
@@ -101,6 +109,7 @@ fun MineScreen(
             0 -> HistoryPanel(
                 controller = controller,
                 onOpen = onOpenHistory,
+                onLongPress = onLongPressHistory,
             )
             1 -> NavPanel(
                 controller = controller,
@@ -122,9 +131,17 @@ private fun NavPanel(
     maxNavTabs: Int,
     onOpenPath: (String) -> Unit,
 ) {
-    val ordered = controller.orderedNavItems()
     val selectedCount = controller.navSelected.size
     val alpha = controller.navAlpha
+    val lazyListState = rememberLazyListState()
+    var ordered by remember(controller.navItems, controller.navOrder) {
+        mutableStateOf(controller.orderedNavItems())
+    }
+    val reorderableState = rememberReorderableLazyListState(lazyListState) { from, to ->
+        ordered = ordered.toMutableList().apply {
+            add(to.index, removeAt(from.index))
+        }
+    }
 
     Column(modifier = Modifier.fillMaxSize()) {
         Column(
@@ -155,61 +172,70 @@ private fun NavPanel(
                 if (selectedCount > maxNavTabs) {
                     "当前屏幕最多显示 $maxNavTabs 个，已选 $selectedCount 个，超出的不会显示。"
                 } else {
-                    "按屏幕宽度最多显示 $maxNavTabs 个，已选 $selectedCount 个。勾选控制显示，箭头调整顺序。"
+                    "按屏幕宽度最多显示 $maxNavTabs 个，已选 $selectedCount 个。勾选控制显示，拖动右侧手柄调整顺序。"
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
         HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
-        LazyColumn(modifier = Modifier.weight(1f)) {
-            itemsIndexed(ordered, key = { _, item -> item.path }) { index, item ->
+        LazyColumn(
+            state = lazyListState,
+            modifier = Modifier.weight(1f),
+        ) {
+            items(ordered, key = { it.path }) { item ->
                 val checked = controller.navSelected.contains(item.path)
                 val canCheck = checked || selectedCount < maxNavTabs
 
-                ListItem(
-                    leadingContent = {
-                        Checkbox(
-                            checked = checked,
-                            onCheckedChange = {
-                                controller.toggleNav(item.path, it, maxNavTabs)
-                            },
-                            enabled = canCheck,
-                        )
-                    },
-                    headlineContent = { Text(item.label) },
-                    supportingContent = {
-                        Text(
-                            text = item.path,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    },
-                    trailingContent = {
-                        Row {
-                            IconButton(
-                                onClick = { controller.moveNav(item.path, -1) },
-                                enabled = index > 0,
+                ReorderableItem(reorderableState, key = item.path) { isDragging ->
+                    ListItem(
+                        leadingContent = {
+                            Checkbox(
+                                checked = checked,
+                                onCheckedChange = {
+                                    controller.toggleNav(item.path, it, maxNavTabs)
+                                },
+                                enabled = canCheck,
+                            )
+                        },
+                        headlineContent = { Text(item.label) },
+                        supportingContent = {
+                            Text(
+                                text = item.path,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        },
+                        trailingContent = {
+                            Box(
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .longPressDraggableHandle(
+                                        onDragStopped = {
+                                            controller.applyNavOrder(ordered.map { it.path })
+                                        },
+                                    ),
+                                contentAlignment = Alignment.Center,
                             ) {
                                 Icon(
-                                    painter = painterResource(R.drawable.ic_arrow_up),
-                                    contentDescription = "上移",
+                                    painter = painterResource(R.drawable.ic_drag_handle),
+                                    contentDescription = "拖动排序",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
-                            IconButton(
-                                onClick = { controller.moveNav(item.path, 1) },
-                                enabled = index < ordered.lastIndex,
-                            ) {
-                                Icon(
-                                    painter = painterResource(R.drawable.ic_arrow_down),
-                                    contentDescription = "下移",
-                                )
-                            }
-                        }
-                    },
-                    modifier = Modifier.clickable { onOpenPath(item.path) },
-                )
-                HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
+                        },
+                        modifier = Modifier
+                            .background(
+                                if (isDragging) {
+                                    MaterialTheme.colorScheme.surfaceVariant
+                                } else {
+                                    Color.Transparent
+                                }
+                            )
+                            .clickable { onOpenPath(item.path) },
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
+                }
             }
         }
     }
@@ -219,6 +245,7 @@ private fun NavPanel(
 private fun HistoryPanel(
     controller: BrowserController,
     onOpen: (HistoryEntry) -> Unit,
+    onLongPress: (HistoryEntry) -> Unit,
 ) {
     val history = controller.history
     var confirmClear by remember { mutableStateOf(false) }
@@ -268,6 +295,7 @@ private fun HistoryPanel(
                 HistoryRow(
                     entry = entry,
                     onClick = { onOpen(entry) },
+                    onLongClick = { onLongPress(entry) },
                     onDelete = { controller.removeHistory(entry.key) },
                 )
                 HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
@@ -295,10 +323,12 @@ private fun HistoryPanel(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun HistoryRow(
     entry: HistoryEntry,
     onClick: () -> Unit,
+    onLongClick: () -> Unit,
     onDelete: () -> Unit,
 ) {
     val formatter = remember { SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()) }
@@ -306,7 +336,10 @@ private fun HistoryRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick,
+            )
             .padding(start = 16.dp, top = 12.dp, bottom = 12.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -331,6 +364,39 @@ private fun HistoryRow(
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
+
+            val detail = buildString {
+                if (entry.episodeName.isNotBlank()) append(entry.episodeName)
+                if (entry.durationMs > 0L) {
+                    if (isNotEmpty()) append(" · ")
+                    append(formatDuration(entry.positionMs))
+                    append(" / ")
+                    append(formatDuration(entry.durationMs))
+                }
+            }
+            if (detail.isNotBlank()) {
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = detail,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            if (entry.durationMs > 0L) {
+                Spacer(Modifier.height(4.dp))
+                LinearProgressIndicator(
+                    progress = {
+                        (entry.positionMs.toFloat() / entry.durationMs).coerceIn(0f, 1f)
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(2.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                )
+            }
+
             Spacer(Modifier.height(2.dp))
             Text(
                 text = formatter.format(Date(entry.updatedAt)),
@@ -345,6 +411,18 @@ private fun HistoryRow(
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+    }
+}
+
+internal fun formatDuration(ms: Long): String {
+    val totalSeconds = (ms / 1000).coerceAtLeast(0)
+    val hours = totalSeconds / 3600
+    val minutes = (totalSeconds % 3600) / 60
+    val seconds = totalSeconds % 60
+    return if (hours > 0) {
+        String.format(Locale.getDefault(), "%d:%02d:%02d", hours, minutes, seconds)
+    } else {
+        String.format(Locale.getDefault(), "%02d:%02d", minutes, seconds)
     }
 }
 
@@ -409,6 +487,10 @@ private fun SettingsPanel(
                     }
                 }
             }
+        }
+
+        item {
+            DefaultPlayerSetting()
         }
 
         item {

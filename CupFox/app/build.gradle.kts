@@ -65,6 +65,7 @@ android {
 
 dependencies {
     implementation(project(":traffic"))
+    implementation(project(":player"))
 
     implementation(platform(libs.compose.bom))
 
@@ -72,6 +73,7 @@ dependencies {
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.runtime.compose)
+    implementation(libs.reorderable)
     implementation(libs.bundles.compose.ui)
 
     debugImplementation(libs.compose.tooling)
