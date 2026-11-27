@@ -1,4 +1,4 @@
-package org.caojun.cupfox.ui
+package org.caojun.traffic
 
 import android.content.Context
 import android.content.Intent
@@ -24,6 +24,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -49,8 +51,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringArrayResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -59,25 +64,29 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.caojun.cupfox.R
-import org.caojun.cupfox.data.DayTraffic
-import org.caojun.cupfox.data.MonthTraffic
-import org.caojun.cupfox.data.TrafficStore
 import java.time.LocalDate
 import java.time.YearMonth
 
+/**
+ * 流量统计界面：今日/本周/本月汇总，系统支持每日 bucket 时再显示月历。
+ *
+ * 宿主只需要 `TrafficPanel()`，权限申请、网络监听都在模块内部完成。
+ */
 @Composable
-fun TrafficPanel() {
+fun TrafficPanel(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val store = remember { TrafficStore(context) }
     val lifecycleOwner = LocalLifecycleOwner.current
 
     var hasAccess by remember { mutableStateOf(store.hasUsageAccess()) }
+    var dailySupported by remember { mutableStateOf<Boolean?>(null) }
+    var totals by remember { mutableStateOf<TrafficTotals?>(null) }
     var month by remember { mutableStateOf(YearMonth.now()) }
+    var monthData by remember { mutableStateOf<MonthTraffic?>(null) }
     var selectedDay by remember { mutableStateOf<LocalDate?>(LocalDate.now()) }
-    var data by remember { mutableStateOf<MonthTraffic?>(null) }
     var loading by remember { mutableStateOf(false) }
     var refreshKey by remember { mutableStateOf(0) }
+
     var hasPhonePermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(
@@ -152,16 +161,26 @@ fun TrafficPanel() {
 
     LaunchedEffect(month, refreshKey, hasAccess) {
         if (!hasAccess) {
-            data = null
+            dailySupported = null
+            totals = null
+            monthData = null
             return@LaunchedEffect
         }
+
         loading = true
-        data = withContext(Dispatchers.IO) { store.queryMonth(month) }
+        val support = withContext(Dispatchers.IO) { store.supportsDailyBreakdown() }
+        dailySupported = support
+        totals = withContext(Dispatchers.IO) { store.queryTotals() }
+        monthData = if (support) {
+            withContext(Dispatchers.IO) { store.queryMonth(month) }
+        } else {
+            null
+        }
         loading = false
     }
 
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(16.dp),
@@ -169,9 +188,12 @@ fun TrafficPanel() {
     ) {
         SummaryCard(
             networkLabel = networkLabel,
-            month = month,
-            data = data,
+            totals = totals,
             loading = loading,
+            onRefresh = {
+                store.clearCache()
+                refreshKey++
+            },
         )
 
         if (!hasAccess) {
@@ -179,40 +201,52 @@ fun TrafficPanel() {
                 onGrant = { openUsageAccessSettings(context) },
             )
         } else {
-            CalendarCard(
-                month = month,
-                data = data,
-                selectedDay = selectedDay,
-                onSelectDay = { selectedDay = it },
-                onPreviousMonth = {
-                    month = month.minusMonths(1)
-                    selectedDay = null
-                },
-                onNextMonth = {
-                    if (month < YearMonth.now()) {
-                        month = month.plusMonths(1)
-                        selectedDay = null
-                    }
-                },
-                onRefresh = {
-                    store.clearCache()
-                    refreshKey++
-                },
-            )
+            when (dailySupported) {
+                true -> {
+                    CalendarCard(
+                        month = month,
+                        data = monthData,
+                        selectedDay = selectedDay,
+                        onSelectDay = { selectedDay = it },
+                        onPreviousMonth = {
+                            month = month.minusMonths(1)
+                            selectedDay = null
+                        },
+                        onNextMonth = {
+                            if (month < YearMonth.now()) {
+                                month = month.plusMonths(1)
+                                selectedDay = null
+                            }
+                        },
+                    )
 
-            selectedDay?.let { day ->
-                DayDetailCard(
-                    day = day,
-                    traffic = data?.days?.get(day.dayOfMonth),
-                )
+                    selectedDay?.let { day ->
+                        DayDetailCard(
+                            day = day,
+                            traffic = monthData?.days?.get(day.dayOfMonth),
+                        )
+                    }
+                }
+
+                false -> {
+                    Text(
+                        stringResource(R.string.traffic_no_daily),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+
+                null -> Unit
             }
 
             Text(
-                if (hasPhonePermission) {
-                    "流量来自系统统计，4G/5G 合并为移动数据，仅供参考。"
-                } else {
-                    "流量来自系统统计，4G/5G 合并为移动数据。授予电话权限后，当前网络会显示 4G/5G 制式。"
-                },
+                stringResource(
+                    if (hasPhonePermission) {
+                        R.string.traffic_note
+                    } else {
+                        R.string.traffic_note_no_phone
+                    },
+                ),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -223,32 +257,35 @@ fun TrafficPanel() {
 @Composable
 private fun SummaryCard(
     networkLabel: String,
-    month: YearMonth,
-    data: MonthTraffic?,
+    totals: TrafficTotals?,
     loading: Boolean,
+    onRefresh: () -> Unit,
 ) {
-    val today = LocalDate.now()
-    val isCurrentMonth = month == YearMonth.from(today)
-    val todayTraffic = if (isCurrentMonth) data?.days?.get(today.dayOfMonth) else null
-
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text("当前网络", style = MaterialTheme.typography.titleSmall)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    stringResource(R.string.traffic_summary_title),
+                    style = MaterialTheme.typography.titleSmall,
+                )
+                Spacer(Modifier.weight(1f))
                 Text(
                     text = networkLabel,
                     color = MaterialTheme.colorScheme.primary,
                     style = MaterialTheme.typography.titleSmall,
                 )
+                IconButton(onClick = onRefresh) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_refresh),
+                        contentDescription = stringResource(R.string.traffic_refresh),
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
             }
 
             if (loading) {
@@ -261,29 +298,54 @@ private fun SummaryCard(
 
             HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
 
-            Row(modifier = Modifier.fillMaxWidth()) {
-                if (isCurrentMonth) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            "今日",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Text("WiFi  ${TrafficStore.formatBytes(todayTraffic?.wifiBytes ?: 0L)}")
-                        Text("移动  ${TrafficStore.formatBytes(todayTraffic?.mobileBytes ?: 0L)}")
-                    }
-                }
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        "当月合计",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Text("WiFi  ${TrafficStore.formatBytes(data?.wifiBytes ?: 0L)}")
-                    Text("移动  ${TrafficStore.formatBytes(data?.mobileBytes ?: 0L)}")
-                }
-            }
+            TotalRow(
+                label = stringResource(R.string.traffic_today),
+                wifi = totals?.todayWifi,
+                mobile = totals?.todayMobile,
+            )
+            TotalRow(
+                label = stringResource(R.string.traffic_this_week),
+                wifi = totals?.weekWifi,
+                mobile = totals?.weekMobile,
+            )
+            TotalRow(
+                label = stringResource(R.string.traffic_this_month),
+                wifi = totals?.monthWifi,
+                mobile = totals?.monthMobile,
+            )
         }
+    }
+}
+
+@Composable
+private fun TotalRow(label: String, wifi: Long?, mobile: Long?) {
+    val wifiLabel = stringResource(R.string.traffic_wifi)
+    val mobileLabel = stringResource(R.string.traffic_mobile)
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = label,
+            modifier = Modifier.width(48.dp),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            text = "$wifiLabel  ${TrafficStore.formatBytes(wifi ?: 0L)}",
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.bodyMedium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text = "$mobileLabel  ${TrafficStore.formatBytes(mobile ?: 0L)}",
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.bodyMedium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
@@ -296,13 +358,18 @@ private fun PermissionCard(onGrant: () -> Unit) {
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text("需要流量统计权限", style = MaterialTheme.typography.titleMedium)
             Text(
-                "Android 需要「使用情况访问」权限才能读取本 App 的流量。授权后返回这里会自动加载。",
+                stringResource(R.string.traffic_permission_title),
+                style = MaterialTheme.typography.titleMedium,
+            )
+            Text(
+                stringResource(R.string.traffic_permission_desc),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Button(onClick = onGrant) { Text("去授权") }
+            Button(onClick = onGrant) {
+                Text(stringResource(R.string.traffic_permission_grant))
+            }
         }
     }
 }
@@ -315,13 +382,13 @@ private fun CalendarCard(
     onSelectDay: (LocalDate) -> Unit,
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit,
-    onRefresh: () -> Unit,
 ) {
     val today = LocalDate.now()
     val maxBytes = data?.days?.values?.maxOfOrNull { it.totalBytes } ?: 0L
     val firstOffset = month.atDay(1).dayOfWeek.value % 7
     val daysInMonth = month.lengthOfMonth()
     val rows = (firstOffset + daysInMonth + 6) / 7
+    val weekDays = stringArrayResource(R.array.traffic_week_days)
 
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -331,11 +398,15 @@ private fun CalendarCard(
                 IconButton(onClick = onPreviousMonth) {
                     Icon(
                         painter = painterResource(R.drawable.ic_chevron_left),
-                        contentDescription = "上个月",
+                        contentDescription = stringResource(R.string.traffic_prev_month),
                     )
                 }
                 Text(
-                    text = "${month.year} 年 ${month.monthValue} 月",
+                    text = stringResource(
+                        R.string.traffic_month_title,
+                        month.year,
+                        month.monthValue,
+                    ),
                     modifier = Modifier.weight(1f),
                     textAlign = TextAlign.Center,
                     style = MaterialTheme.typography.titleMedium,
@@ -346,19 +417,13 @@ private fun CalendarCard(
                 ) {
                     Icon(
                         painter = painterResource(R.drawable.ic_chevron_right),
-                        contentDescription = "下个月",
-                    )
-                }
-                IconButton(onClick = onRefresh) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_refresh),
-                        contentDescription = "刷新",
+                        contentDescription = stringResource(R.string.traffic_next_month),
                     )
                 }
             }
 
             Row(modifier = Modifier.fillMaxWidth()) {
-                listOf("日", "一", "二", "三", "四", "五", "六").forEach { label ->
+                weekDays.forEach { label ->
                     Text(
                         text = label,
                         modifier = Modifier.weight(1f),
@@ -475,13 +540,27 @@ private fun DayDetailCard(day: LocalDate, traffic: DayTraffic?) {
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Text(
-                text = "${day.monthValue} 月 ${day.dayOfMonth} 日",
+                text = stringResource(
+                    R.string.traffic_day_detail,
+                    day.monthValue,
+                    day.dayOfMonth,
+                ),
                 style = MaterialTheme.typography.titleMedium,
             )
-            DetailRow("WiFi", TrafficStore.formatBytes(wifi))
-            DetailRow("移动数据", TrafficStore.formatBytes(mobile))
+            DetailRow(
+                label = stringResource(R.string.traffic_wifi),
+                value = TrafficStore.formatBytes(wifi),
+            )
+            DetailRow(
+                label = stringResource(R.string.traffic_mobile_data),
+                value = TrafficStore.formatBytes(mobile),
+            )
             HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
-            DetailRow("合计", TrafficStore.formatBytes(wifi + mobile), bold = true)
+            DetailRow(
+                label = stringResource(R.string.traffic_total),
+                value = TrafficStore.formatBytes(wifi + mobile),
+                bold = true,
+            )
         }
     }
 }

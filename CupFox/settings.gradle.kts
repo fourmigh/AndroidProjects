@@ -22,3 +22,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "CupFox"
 include(":app")
+include(":traffic")

@@ -1,4 +1,4 @@
-package org.caojun.cupfox.data
+package org.caojun.traffic
 
 import android.app.AppOpsManager
 import android.app.usage.NetworkStats
@@ -14,20 +14,6 @@ import java.time.YearMonth
 import java.time.ZoneId
 import java.util.Locale
 
-data class DayTraffic(
-    val wifiBytes: Long = 0L,
-    val mobileBytes: Long = 0L,
-) {
-    val totalBytes: Long get() = wifiBytes + mobileBytes
-}
-
-data class MonthTraffic(
-    val month: YearMonth,
-    val days: Map<Int, DayTraffic>,
-    val wifiBytes: Long,
-    val mobileBytes: Long,
-)
-
 /**
  * 通过系统 NetworkStatsManager 统计本 App 的流量。
  *
@@ -37,6 +23,7 @@ data class MonthTraffic(
 class TrafficStore(private val context: Context) {
 
     private val cache = mutableMapOf<YearMonth, MonthTraffic>()
+    private var dailySupportCache: Boolean? = null
 
     fun hasUsageAccess(): Boolean {
         return try {
@@ -55,21 +42,31 @@ class TrafficStore(private val context: Context) {
 
     fun currentNetworkLabel(hasPhonePermission: Boolean): String {
         return try {
-            val manager = context.getSystemService(ConnectivityManager::class.java) ?: return "未知"
-            val network = manager.activeNetwork ?: return "无网络"
-            val capabilities = manager.getNetworkCapabilities(network) ?: return "无网络"
+            val manager = context.getSystemService(ConnectivityManager::class.java)
+                ?: return context.getString(R.string.traffic_network_unknown)
+            val network = manager.activeNetwork
+                ?: return context.getString(R.string.traffic_network_none)
+            val capabilities = manager.getNetworkCapabilities(network)
+                ?: return context.getString(R.string.traffic_network_none)
             when {
-                capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN) -> "VPN"
-                capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> "WiFi"
+                capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN) ->
+                    context.getString(R.string.traffic_network_vpn)
+                capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ->
+                    context.getString(R.string.traffic_network_wifi)
                 capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ->
-                    if (hasPhonePermission) cellularLabel() else "移动数据"
-                capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> "有线网络"
-                else -> "其他网络"
+                    if (hasPhonePermission) {
+                        cellularLabel()
+                    } else {
+                        context.getString(R.string.traffic_network_mobile)
+                    }
+                capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) ->
+                    context.getString(R.string.traffic_network_ethernet)
+                else -> context.getString(R.string.traffic_network_other)
             }
         } catch (e: SecurityException) {
-            "无网络权限"
+            context.getString(R.string.traffic_network_no_permission)
         } catch (e: Exception) {
-            "未知"
+            context.getString(R.string.traffic_network_unknown)
         }
     }
 
@@ -77,10 +74,10 @@ class TrafficStore(private val context: Context) {
     private fun cellularLabel(): String {
         return try {
             val manager = context.getSystemService(TelephonyManager::class.java)
-                ?: return "移动数据"
+                ?: return context.getString(R.string.traffic_network_mobile)
             when (manager.dataNetworkType) {
-                TelephonyManager.NETWORK_TYPE_NR -> "5G"
-                TelephonyManager.NETWORK_TYPE_LTE -> "4G"
+                TelephonyManager.NETWORK_TYPE_NR -> context.getString(R.string.traffic_network_5g)
+                TelephonyManager.NETWORK_TYPE_LTE -> context.getString(R.string.traffic_network_4g)
                 TelephonyManager.NETWORK_TYPE_HSPAP,
                 TelephonyManager.NETWORK_TYPE_HSDPA,
                 TelephonyManager.NETWORK_TYPE_HSUPA,
@@ -89,24 +86,105 @@ class TrafficStore(private val context: Context) {
                 TelephonyManager.NETWORK_TYPE_EVDO_A,
                 TelephonyManager.NETWORK_TYPE_EVDO_B,
                 TelephonyManager.NETWORK_TYPE_EHRPD,
-                TelephonyManager.NETWORK_TYPE_TD_SCDMA -> "3G"
+                TelephonyManager.NETWORK_TYPE_TD_SCDMA -> context.getString(R.string.traffic_network_3g)
                 TelephonyManager.NETWORK_TYPE_EDGE,
                 TelephonyManager.NETWORK_TYPE_GPRS,
                 TelephonyManager.NETWORK_TYPE_CDMA,
                 TelephonyManager.NETWORK_TYPE_1xRTT,
                 TelephonyManager.NETWORK_TYPE_IDEN,
-                TelephonyManager.NETWORK_TYPE_GSM -> "2G"
-                else -> "移动数据"
+                TelephonyManager.NETWORK_TYPE_GSM -> context.getString(R.string.traffic_network_2g)
+                else -> context.getString(R.string.traffic_network_mobile)
             }
         } catch (e: SecurityException) {
-            "移动数据"
+            context.getString(R.string.traffic_network_mobile)
         } catch (e: Exception) {
-            "移动数据"
+            context.getString(R.string.traffic_network_mobile)
         }
     }
 
     fun clearCache() {
         cache.clear()
+        dailySupportCache = null
+    }
+
+    /**
+     * 探测本 App 是否有按天的 bucket。
+     *
+     * 用 queryDetailsForUid 查最近 14 天（WiFi + 移动）的原始 bucket，
+     * 如果 bucket 的起始时间落在这 14 天里的至少两个不同日期，就认为可以按月历展示；
+     * 如果只有一个日期或只有一个大桶，则只显示汇总。
+     */
+    fun supportsDailyBreakdown(): Boolean {
+        dailySupportCache?.let { return it }
+        if (!hasUsageAccess()) {
+            dailySupportCache = false
+            return false
+        }
+
+        val now = System.currentTimeMillis()
+        val start = now - 14L * 24L * 60L * 60L * 1000L
+        val zone = ZoneId.systemDefault()
+        val days = mutableSetOf<Long>()
+
+        fun collect(networkType: Int) {
+            try {
+                val manager = context.getSystemService(NetworkStatsManager::class.java)
+                val stats = manager.queryDetailsForUid(
+                    networkType,
+                    null,
+                    start,
+                    now,
+                    Process.myUid(),
+                )
+                val bucket = NetworkStats.Bucket()
+                var count = 0
+                while (stats.hasNextBucket() && count < 3000 && days.size < 2) {
+                    stats.getNextBucket(bucket)
+                    val date = Instant.ofEpochMilli(bucket.startTimeStamp)
+                        .atZone(zone)
+                        .toLocalDate()
+                    days.add(date.toEpochDay())
+                    count++
+                }
+            } catch (e: Exception) {
+                // 部分系统不提供 queryDetailsForUid，交给下面的兜底
+            }
+        }
+
+        collect(ConnectivityManager.TYPE_WIFI)
+        if (days.size < 2) collect(ConnectivityManager.TYPE_MOBILE)
+
+        val result = days.size >= 2
+        dailySupportCache = result
+        return result
+    }
+
+    /** 今日 / 本周 / 本月汇总。 */
+    fun queryTotals(): TrafficTotals {
+        val zone = ZoneId.systemDefault()
+        val today = LocalDate.now()
+        val now = System.currentTimeMillis()
+
+        val todayStart = today.atStartOfDay(zone).toInstant().toEpochMilli()
+        val weekStart = today
+            .minusDays((today.dayOfWeek.value - 1).toLong())
+            .atStartOfDay(zone)
+            .toInstant()
+            .toEpochMilli()
+        val monthStart = today
+            .withDayOfMonth(1)
+            .atStartOfDay(zone)
+            .toInstant()
+            .toEpochMilli()
+
+        return TrafficTotals(
+            todayWifi = queryRange(ConnectivityManager.TYPE_WIFI, todayStart, now),
+            todayMobile = queryRange(ConnectivityManager.TYPE_MOBILE, todayStart, now),
+            weekWifi = queryRange(ConnectivityManager.TYPE_WIFI, weekStart, now),
+            weekMobile = queryRange(ConnectivityManager.TYPE_MOBILE, weekStart, now),
+            monthWifi = queryRange(ConnectivityManager.TYPE_WIFI, monthStart, now),
+            monthMobile = queryRange(ConnectivityManager.TYPE_MOBILE, monthStart, now),
+        )
     }
 
     fun queryMonth(month: YearMonth): MonthTraffic {

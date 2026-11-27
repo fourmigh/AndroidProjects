@@ -64,6 +64,8 @@ android {
 }
 
 dependencies {
+    implementation(project(":traffic"))
+
     implementation(platform(libs.compose.bom))
 
     implementation(libs.androidx.core.ktx)

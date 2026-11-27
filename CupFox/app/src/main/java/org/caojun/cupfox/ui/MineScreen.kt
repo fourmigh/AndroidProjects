@@ -52,6 +52,7 @@ import org.caojun.cupfox.R
 import org.caojun.cupfox.data.SettingsStore
 import org.caojun.cupfox.model.HistoryEntry
 import org.caojun.cupfox.web.BrowserController
+import org.caojun.traffic.TrafficPanel
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
