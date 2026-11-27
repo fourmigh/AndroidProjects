@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- 橙色圆盘 -->
+    <path
+        android:fillColor="#FF7A45"
+        android:pathData="M54,26 A28,28 0 1 1 53.99,26 Z" />
+    <!-- 播放三角 -->
+    <path
+        android:fillColor="#16161C"
+        android:pathData="M47,40 L72,54 L47,68 Z" />
+</vector>

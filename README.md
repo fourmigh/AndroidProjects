@@ -38,7 +38,8 @@ OnDeviceOcr / OnDeviceTranslate / OnDeviceLlm（provider，模型与推理，独
 | `WalletLoginDemo/` | 独立 Demo | Google Wallet 动态二维码 / NFC HCE 碰一碰替代登录，含 Node 后端；详见其 [README.md](WalletLoginDemo/README.md) |
 | `HowManyHanzi/` | 独立 App | 汉字识字量自测（Kotlin + Compose，完全离线；内置 8105 字资料、6866 字笔顺字模，含写字动画与写信彩蛋）；详见其 [README.md](HowManyHanzi/README.md) |
 | `QuotaMonitor/` | 独立 App | 套餐限额监控（Kotlin + Compose；内置 WebView 复用登录态，配置驱动 + 自动识别向导，无需改代码即可新增 AI 套餐额度查询；原生仪表盘展示）；详见其 [README.md](QuotaMonitor/README.md) |
-| `keystore/` | 签名资产 | `shared.p12` + `keystore.properties`，五个 App 共用同一证书（便于 debug / release 互相覆盖升级）；已 gitignore，不要提交 |
+| `CupFox/` | 独立 App | 茶杯狐影视站网页壳（Kotlin + Compose；底部栏目从网页导航读取，可勾选 / 排序 / 调透明度；播放器全屏、观看历史、m3u8 外部播放 / 投屏）；详见其 [README.md](CupFox/README.md) |
+| `keystore/` | 签名资产 | `shared.p12` + `keystore.properties`，各 App 共用同一证书（便于 debug / release 互相覆盖升级）；已 gitignore，不要提交 |
 | `install.bat` | 脚本 | 对工作区里的工程执行 gradle 安装到设备，支持 `release` / `clean` 参数 |
 | `download-models.bat` | 脚本 | `download-models <工程名>`：按工程内 `.url` 文件下载模型到对应位置，已存在则跳过，支持断点续传；`HF_MIRROR` 可指定 HuggingFace 镜像 |
 | `start-backend.bat` | 脚本 | `start-backend <工程名> [port:xxx]`：启动工程内的后端服务（现在用于 WalletLoginDemo） |
@@ -75,6 +76,7 @@ OnDeviceXxx/
    .\install.bat AutoOcrTask
    .\install.bat HowManyHanzi
    .\install.bat QuotaMonitor
+   .\install.bat CupFox
    ```
 
 3. **独立构建**（每个工程是独立 Gradle 构建）：
@@ -111,3 +113,4 @@ OnDeviceXxx/
 - [ON_DEVICE_AI.md](ON_DEVICE_AI.md) — 拆分架构详细说明（签名、权限、API 契约、运行时行为、构建与测试）
 - [WalletLoginDemo/README.md](WalletLoginDemo/README.md) — Wallet / NFC 登录 Demo 的架构与运行方式
 - [HowManyHanzi/README.md](HowManyHanzi/README.md) — 汉字识字量自测 App 的功能、离线数据管线与构建方式
+- [CupFox/README.md](CupFox/README.md) — 茶杯狐网页壳的功能、站点适配与构建方式
