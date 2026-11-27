@@ -68,7 +68,7 @@ cd ComposeWidgets
 .\gradlew.bat :widgets-segmented:assembleDebug
 ```
 
-CupFox 通过 `settings.gradle.kts` 的 `projectDir` 引用：
+WebFilm 通过 `settings.gradle.kts` 的 `projectDir` 引用：
 
 ```kotlin
 include(":widgets-theme")
